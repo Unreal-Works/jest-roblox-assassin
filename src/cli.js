@@ -8,8 +8,8 @@ import fs from "fs";
 import path, { dirname } from "path";
 import * as rbxluau from "rbxluau";
 import { fileURLToPath } from "url";
-import { ResultRewriter } from "./rewriter.js";
 import { getCliOptions } from "./docs.js";
+import { ResultRewriter } from "./rewriter.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -40,26 +40,26 @@ for (const opt of cliOptions) {
     const flagName = opt.name.replace(/^--/, "");
     const isArray = opt.type.includes("array");
     const isNumber = opt.type.includes("number");
-    
+
     let flags = opt.name;
     // Add short flags for common options
     const shortFlags = {
         verbose: "-v",
-        testNamePattern: "-t"
+        testNamePattern: "-t",
     };
     if (shortFlags[flagName]) {
         flags = `${shortFlags[flagName]}, ${opt.name}`;
     }
-    
+
     // Handle value placeholder
     if (opt.type.includes("string")) {
         flags += " <value>";
     } else if (isNumber) {
         flags += " <ms>";
     }
-    
+
     const description = opt.description.split("\n")[0]; // First line only
-    
+
     if (isArray) {
         program.option(flags, description, collect, []);
     } else if (isNumber) {
@@ -89,14 +89,21 @@ if (options.showConfig) jestOptions.showConfig = true;
 if (options.updateSnapshot) jestOptions.updateSnapshot = true;
 if (options.verbose) jestOptions.verbose = true;
 if (options.testTimeout) jestOptions.testTimeout = options.testTimeout;
-if (options.testNamePattern) jestOptions.testNamePattern = options.testNamePattern;
-if (options.testPathPattern) jestOptions.testPathPattern = options.testPathPattern;
+if (options.testNamePattern)
+    jestOptions.testNamePattern = options.testNamePattern;
+if (options.testPathPattern)
+    jestOptions.testPathPattern = options.testPathPattern;
 else if (testPathPattern) jestOptions.testPathPattern = testPathPattern;
-if (options.testMatch && options.testMatch.length > 0) jestOptions.testMatch = options.testMatch;
-if (options.testPathIgnorePatterns && options.testPathIgnorePatterns.length > 0) {
+if (options.testMatch && options.testMatch.length > 0)
+    jestOptions.testMatch = options.testMatch;
+if (
+    options.testPathIgnorePatterns &&
+    options.testPathIgnorePatterns.length > 0
+) {
     jestOptions.testPathIgnorePatterns = options.testPathIgnorePatterns;
 }
-if (options.reporters && options.reporters.length > 0) jestOptions.reporters = options.reporters;
+if (options.reporters && options.reporters.length > 0)
+    jestOptions.reporters = options.reporters;
 
 const placeFile = options.place;
 let projectFile = options.project ? path.resolve(options.project) : undefined;
@@ -115,7 +122,8 @@ if (!projectFile) {
         // Search up to 2 levels deep
         const getSubdirs = (dir) => {
             try {
-                return fs.readdirSync(dir, { withFileTypes: true })
+                return fs
+                    .readdirSync(dir, { withFileTypes: true })
                     .filter(
                         (dirent) =>
                             dirent.isDirectory() &&
@@ -227,6 +235,7 @@ let luauScript = `
 local jestOptions = game:GetService("HttpService"):JSONDecode([===[${JSON.stringify(
     jestOptions
 )}]===])
+jestOptions.reporters = {} -- Redundant reporters, handled in JS
 
 local runCLI
 local projects = {}
@@ -252,6 +261,11 @@ if #projects == 0 then
 end
 
 local success, resolved = runCLI(game, jestOptions, projects):await()
+
+if jestOptions.showConfig then
+    return 0
+end
+
 print("__SUCCESS_START__")
 print(success)
 print("__SUCCESS_END__")
@@ -268,13 +282,21 @@ const luauExitCode = await rbxluau.executeLuau(luauScript, {
     exit: false,
     out: outputPath,
 });
-
 const outputLog = fs.readFileSync(outputPath, "utf-8");
 
 if (luauExitCode !== 0) {
     console.error("Luau script execution failed with exit code:", luauExitCode);
     console.error(outputLog);
     process.exit(1);
+}
+
+if (jestOptions.showConfig) {
+    // Find first and last curly braces to extract JSON
+    const firstBrace = outputLog.indexOf("{");
+    const lastBrace = outputLog.lastIndexOf("}");
+    const config = JSON.parse(outputLog.slice(firstBrace, lastBrace + 1));
+    console.log(config);
+    process.exit(0);
 }
 
 const successMatch = outputLog.match(
@@ -303,9 +325,12 @@ new ResultRewriter({
 // Fix globalConfig - set rootDir to current working directory if null
 const globalConfig = {
     ...parsedResults.globalConfig,
+    ...jestOptions,
     rootDir: parsedResults.globalConfig.rootDir || workspaceRoot,
     testPathPatterns,
 };
+console.log(globalConfig);
+
 const reporterClasses = [DefaultReporter, SummaryReporter];
 for (const Reporter of reporterClasses) {
     const reporter = new Reporter(globalConfig);
