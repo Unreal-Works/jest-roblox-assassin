@@ -139,7 +139,8 @@ export class ResultRewriter {
         return path
             .relative(this.workspaceRoot, filePath)
             .split(path.sep)
-            .join("/");
+            .join("/")
+            .replace(/\\/g, "/");
     }
 
     /**
