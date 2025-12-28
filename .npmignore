@@ -1,0 +1,11 @@
+**/*.test.js
+**/cli-options.json
+**/luau_output.log
+**/coverage
+**/demo
+**/*.env
+**/node_modules
+**/.github
+.gitattributes
+.prettierrc
+vitest.config.js
