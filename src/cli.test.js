@@ -80,7 +80,7 @@ describe("CLI Integration Tests", () => {
             expect(code).toBe(1);
         });
 
-        it.skipIf(shouldSkip)(
+        it.concurrent.skipIf(shouldSkip)(
             "should load config file when specified",
             async () => {
                 const configPath = path.join(demoDir, "src", "jest.config.ts");
@@ -100,7 +100,7 @@ describe("CLI Integration Tests", () => {
                 // Should either succeed or fail with a different error (not "file not found")
                 expect(stderr).not.toContain("Config file not found");
             },
-            30000
+            15000
         );
     });
 
@@ -111,7 +111,7 @@ describe("CLI Integration Tests", () => {
             expect(code).toBe(1);
         });
 
-        it.skipIf(shouldSkip)(
+        it.concurrent.skipIf(shouldSkip)(
             "should accept place file via --place option",
             async () => {
                 const { stderr } = await runCli(["--place", demoPlaceFile]);
@@ -119,12 +119,12 @@ describe("CLI Integration Tests", () => {
                 // May fail for other reasons (no JestCore, etc), but should not complain about missing place
                 expect(stderr).not.toContain("place file not found");
             },
-            30000
+            15000
         );
     });
 
     describe("test filtering", () => {
-        it.skipIf(shouldSkip)(
+        it.concurrent.skipIf(shouldSkip)(
             "should support testPathPattern as argument",
             async () => {
                 const { stdout } = await runCli(
@@ -135,10 +135,10 @@ describe("CLI Integration Tests", () => {
                 // Just verify it doesn't crash with the pattern
                 expect(stdout).toBeDefined();
             },
-            30000
+            15000
         );
 
-        it.skipIf(shouldSkip)(
+        it.concurrent.skipIf(shouldSkip)(
             "should support testNamePattern from environment variable",
             async () => {
                 const { stdout } = await runCli(["--place", demoPlaceFile], {
@@ -148,12 +148,12 @@ describe("CLI Integration Tests", () => {
 
                 expect(stdout).toBeDefined();
             },
-            30000
+            15000
         );
     });
 
     describe("project discovery", () => {
-        it.skipIf(shouldSkip)(
+        it.concurrent.skipIf(shouldSkip)(
             "should find default.project.json in place directory",
             async () => {
                 const { stderr } = await runCli(["--place", demoPlaceFile], {
@@ -165,7 +165,7 @@ describe("CLI Integration Tests", () => {
                     "Could not find default.project.json"
                 );
             },
-            30000
+            15000
         );
 
         it("should search subdirectories for default.project.json", async () => {
@@ -204,7 +204,7 @@ describe("CLI Integration Tests", () => {
     });
 
     describe("reporter configuration", () => {
-        it.skipIf(shouldSkip)(
+        it.concurrent.skipIf(shouldSkip)(
             "should use default reporters when none specified",
             async () => {
                 const { stdout } = await runCli(["--place", demoPlaceFile], {
@@ -214,10 +214,10 @@ describe("CLI Integration Tests", () => {
                 // Default reporters should output test results
                 expect(stdout).toBeDefined();
             },
-            30000
+            15000
         );
 
-        it.skipIf(shouldSkip)(
+        it.concurrent.skipIf(shouldSkip)(
             "should accept custom reporters via --reporters",
             async () => {
                 const { stdout } = await runCli(
@@ -227,12 +227,12 @@ describe("CLI Integration Tests", () => {
 
                 expect(stdout).toBeDefined();
             },
-            30000
+            15000
         );
     });
 
     describe("CLI options", () => {
-        it.skipIf(shouldSkip)(
+        it.concurrent.skipIf(shouldSkip)(
             "should accept --verbose flag",
             async () => {
                 const { stdout } = await runCli(
@@ -242,10 +242,10 @@ describe("CLI Integration Tests", () => {
 
                 expect(stdout).toBeDefined();
             },
-            30000
+            15000
         );
 
-        it.skipIf(shouldSkip)(
+        it.concurrent.skipIf(shouldSkip)(
             "should accept --ci flag",
             async () => {
                 const { stdout } = await runCli(
@@ -255,10 +255,10 @@ describe("CLI Integration Tests", () => {
 
                 expect(stdout).toBeDefined();
             },
-            30000
+            15000
         );
 
-        it.skipIf(shouldSkip)(
+        it.concurrent.skipIf(shouldSkip)(
             "should accept --testTimeout",
             async () => {
                 const { stdout } = await runCli(
@@ -268,10 +268,10 @@ describe("CLI Integration Tests", () => {
 
                 expect(stdout).toBeDefined();
             },
-            30000
+            15000
         );
 
-        it.skipIf(shouldSkip)(
+        it.concurrent.skipIf(shouldSkip)(
             "should accept --passWithNoTests",
             async () => {
                 const { code } = await runCli(
@@ -288,7 +288,7 @@ describe("CLI Integration Tests", () => {
                 // Should pass even with no tests
                 expect(code).toBe(0);
             },
-            30000
+            15000
         );
     });
 
@@ -321,7 +321,7 @@ describe("CLI Integration Tests", () => {
     });
 
     describe("output format", () => {
-        it.skipIf(shouldSkip)(
+        it.concurrent.skipIf(shouldSkip)(
             "should output JSON when --json flag is used",
             async () => {
                 const { stdout } = await runCli(
@@ -331,10 +331,10 @@ describe("CLI Integration Tests", () => {
 
                 expect(stdout).toBeDefined();
             },
-            30000
+            15000
         );
 
-        it.skipIf(shouldSkip)(
+        it.concurrent.skipIf(shouldSkip)(
             "should show config when --showConfig is used",
             async () => {
                 const { code, stdout } = await runCli(
@@ -346,7 +346,7 @@ describe("CLI Integration Tests", () => {
                 // Config output should be valid
                 expect(stdout).toBeDefined();
             },
-            30000
+            15000
         );
     });
 });
