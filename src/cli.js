@@ -2,12 +2,14 @@
 
 import { TestPathPatterns } from "@jest/pattern";
 import { DefaultReporter, SummaryReporter } from "@jest/reporters";
+import { Command } from "commander";
 import dotenv from "dotenv";
 import fs from "fs";
 import path, { dirname } from "path";
 import * as rbxluau from "rbxluau";
 import { fileURLToPath } from "url";
 import { ResultRewriter } from "./rewriter.js";
+import { getCliOptions } from "./docs.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -16,19 +18,88 @@ const outputPath = path.join(__dirname, "luau_output.log");
 // Load environment variables from .env file
 dotenv.config({ quiet: true });
 
-// Parse command line arguments
-const args = process.argv.slice(2);
-let placeFile = undefined;
-let projectFile = undefined;
-for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--place" && i + 1 < args.length) {
-        placeFile = args[i + 1];
-        i++; // Skip the next argument since we used it
-    } else if (args[i] === "--project" && i + 1 < args.length) {
-        projectFile = path.resolve(args[i + 1]);
-        i++;
+// Fetch CLI options and build commander program
+const cliOptions = await getCliOptions();
+
+const program = new Command();
+
+program
+    .name("jestrbx")
+    .description("Delightful Roblox testing.")
+    .version("1.0.0")
+    .argument("[testPathPattern]", "test path pattern to match")
+    .option("--place <file>", "path to Roblox place file")
+    .option("--project <file>", "path to project JSON file");
+
+// Add options from fetched documentation
+function collect(value, previous) {
+    return previous.concat([value]);
+}
+
+for (const opt of cliOptions) {
+    const flagName = opt.name.replace(/^--/, "");
+    const isArray = opt.type.includes("array");
+    const isNumber = opt.type.includes("number");
+    
+    let flags = opt.name;
+    // Add short flags for common options
+    const shortFlags = {
+        verbose: "-v",
+        testNamePattern: "-t"
+    };
+    if (shortFlags[flagName]) {
+        flags = `${shortFlags[flagName]}, ${opt.name}`;
+    }
+    
+    // Handle value placeholder
+    if (opt.type.includes("string")) {
+        flags += " <value>";
+    } else if (isNumber) {
+        flags += " <ms>";
+    }
+    
+    const description = opt.description.split("\n")[0]; // First line only
+    
+    if (isArray) {
+        program.option(flags, description, collect, []);
+    } else if (isNumber) {
+        program.option(flags, description, Number);
+    } else {
+        program.option(flags, description);
     }
 }
+
+program.parse();
+
+const options = program.opts();
+const [testPathPattern] = program.args;
+
+// Build jestOptions from parsed arguments
+const jestOptions = {};
+if (options.ci) jestOptions.ci = true;
+if (options.clearMocks) jestOptions.clearMocks = true;
+if (options.debug) jestOptions.debug = true;
+if (options.expand) jestOptions.expand = true;
+if (options.json) jestOptions.json = true;
+if (options.listTests) jestOptions.listTests = true;
+if (options.noStackTrace) jestOptions.noStackTrace = true;
+if (options.passWithNoTests) jestOptions.passWithNoTests = true;
+if (options.resetMocks) jestOptions.resetMocks = true;
+if (options.showConfig) jestOptions.showConfig = true;
+if (options.updateSnapshot) jestOptions.updateSnapshot = true;
+if (options.verbose) jestOptions.verbose = true;
+if (options.testTimeout) jestOptions.testTimeout = options.testTimeout;
+if (options.testNamePattern) jestOptions.testNamePattern = options.testNamePattern;
+if (options.testPathPattern) jestOptions.testPathPattern = options.testPathPattern;
+else if (testPathPattern) jestOptions.testPathPattern = testPathPattern;
+if (options.testMatch && options.testMatch.length > 0) jestOptions.testMatch = options.testMatch;
+if (options.testPathIgnorePatterns && options.testPathIgnorePatterns.length > 0) {
+    jestOptions.testPathIgnorePatterns = options.testPathIgnorePatterns;
+}
+if (options.reporters && options.reporters.length > 0) jestOptions.reporters = options.reporters;
+
+const placeFile = options.place;
+let projectFile = options.project ? path.resolve(options.project) : undefined;
 
 const workspaceRoot = placeFile
     ? path.dirname(path.resolve(placeFile))
@@ -143,20 +214,19 @@ if (!datamodelPrefixSegments || datamodelPrefixSegments.length === 0) {
 }
 
 // Get test filter from environment variable (set by VS Code extension)
-const testNamePattern = process.env.JEST_TEST_NAME_PATTERN || "";
+if (process.env.JEST_TEST_NAME_PATTERN) {
+    jestOptions.testNamePattern = process.env.JEST_TEST_NAME_PATTERN;
+}
 
 const testPathPatterns = new TestPathPatterns(
-    testNamePattern ? [testNamePattern] : []
+    jestOptions.testPathPattern ? [jestOptions.testPathPattern] : []
 );
 
 // Build the Luau script with optional test filter
 let luauScript = `
-local jestOptions = {}
-jestOptions.testNamePattern = ${
-    testNamePattern
-        ? `"${testNamePattern.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
-        : undefined
-}
+local jestOptions = game:GetService("HttpService"):JSONDecode([===[${JSON.stringify(
+    jestOptions
+)}]===])
 
 local runCLI
 local projects = {}

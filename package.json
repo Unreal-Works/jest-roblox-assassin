@@ -1,13 +1,13 @@
 {
-    "name": "roblox-jest-assassin",
+    "name": "jest-roblox",
     "version": "1.0.0",
-    "description": "",
+    "description": "Delightful Roblox testing.",
     "license": "MIT",
     "author": "evilbocchi",
     "type": "module",
     "main": "src/index.js",
     "bin": {
-        "jest": "src/cli.js"
+        "jestrbx": "src/cli.js"
     },
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
@@ -16,6 +16,7 @@
     "dependencies": {
         "@jest/reporters": "^30.2.0",
         "chalk": "^5.6.2",
+        "commander": "^14.0.2",
         "rbxluau": "^1.6.0"
     }
 }
