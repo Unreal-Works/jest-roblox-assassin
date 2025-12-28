@@ -3,7 +3,6 @@
 import { TestPathPatterns } from "@jest/pattern";
 import { DefaultReporter, SummaryReporter } from "@jest/reporters";
 import { Command } from "commander";
-import crypto from "crypto";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
@@ -46,6 +45,7 @@ for (const opt of cliOptions) {
     const flagName = opt.name.replace(/^--/, "");
     const isArray = opt.type.includes("array");
     const isNumber = opt.type.includes("number");
+    const isString = opt.type.includes("string") || opt.type.includes("regex");
 
     let flags = opt.name;
     // Add short flags for common options
@@ -58,7 +58,7 @@ for (const opt of cliOptions) {
     }
 
     // Handle value placeholder
-    if (opt.type.includes("string")) {
+    if (isString) {
         flags += " <value>";
     } else if (isNumber) {
         flags += " <ms>";
@@ -337,41 +337,159 @@ return 0
     return JSON.parse(resultMatch[1]);
 }
 
-// Helper function to get cache key for test discovery
-function getCacheKey() {
-    const hash = crypto.createHash("md5");
-    hash.update(placeFile || "no-place");
-    hash.update(projectFile || "no-project");
-    hash.update(JSON.stringify(jestOptions.testMatch || []));
-    hash.update(JSON.stringify(jestOptions.testPathIgnorePatterns || []));
-    hash.update(jestOptions.testPathPattern || "");
-    return hash.digest("hex");
-}
+// Helper function to discover test files from filesystem
+function discoverTestFilesFromFilesystem() {
+    const outDirPath = path.join(projectRoot, outDir);
 
-// Helper function to discover test suites
-async function discoverTestSuites() {
-    const discoveryOptions = {
-        ...jestOptions,
-        // Don't use listTests - just run the tests once to discover paths
-    };
+    if (!fs.existsSync(outDirPath)) {
+        if (jestOptions.verbose) {
+            console.log(`Output directory not found: ${outDirPath}`);
+        }
+        return [];
+    }
 
-    // Remove listTests if it was set
-    delete discoveryOptions.listTests;
+    // Default test patterns if none specified
+    const defaultTestMatch = [
+        "**/__tests__/**/*.[jt]s?(x)",
+        "**/?(*.)+(spec|test).[jt]s?(x)",
+    ];
 
-    const result = await executeLuauTest(discoveryOptions, luauOutputPath);
+    const testMatchPatterns =
+        jestOptions.testMatch && jestOptions.testMatch.length > 0
+            ? jestOptions.testMatch
+            : defaultTestMatch;
 
-    if (jestOptions.verbose) {
-        console.log(
-            "Discovery found",
-            result.results?.testResults?.length || 0,
-            "test suites"
+    // Convert glob patterns to work with .luau files in outDir
+    const luauPatterns = testMatchPatterns.map((pattern) => {
+        // Replace js/ts extensions with luau
+        return pattern
+            .replace(/\.\[jt\]s\?\(x\)/g, ".luau")
+            .replace(/\.\[jt\]sx?/g, ".luau")
+            .replace(/\.tsx?/g, ".luau")
+            .replace(/\.jsx?/g, ".luau")
+            .replace(/\.ts/g, ".luau")
+            .replace(/\.js/g, ".luau");
+    });
+
+    // Add patterns for native .luau test files
+    if (
+        !luauPatterns.some(
+            (p) => p.includes(".spec.luau") || p.includes(".test.luau")
+        )
+    ) {
+        luauPatterns.push("**/__tests__/**/*.spec.luau");
+        luauPatterns.push("**/__tests__/**/*.test.luau");
+        luauPatterns.push("**/*.spec.luau");
+        luauPatterns.push("**/*.test.luau");
+    }
+
+    const testFiles = [];
+
+    // Simple recursive file finder with glob-like pattern matching
+    function findFiles(dir, baseDir) {
+        try {
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                const relativePath = path
+                    .relative(baseDir, fullPath)
+                    .replace(/\\/g, "/");
+
+                if (entry.isDirectory()) {
+                    // Skip node_modules and hidden directories
+                    if (
+                        !entry.name.startsWith(".") &&
+                        entry.name !== "node_modules"
+                    ) {
+                        findFiles(fullPath, baseDir);
+                    }
+                } else if (entry.isFile() && entry.name.endsWith(".luau")) {
+                    // Check if file matches any test pattern
+                    const isTestFile = luauPatterns.some((pattern) => {
+                        return matchGlobPattern(relativePath, pattern);
+                    });
+
+                    if (isTestFile) {
+                        testFiles.push(relativePath);
+                    }
+                }
+            }
+        } catch (error) {
+            // Ignore errors reading directories
+        }
+    }
+
+    // Simple glob pattern matcher
+    function matchGlobPattern(filePath, pattern) {
+        // Handle common glob patterns
+        let regexPattern = pattern
+            .replace(/\./g, "\\.")
+            .replace(/\*\*/g, "{{GLOBSTAR}}")
+            .replace(/\*/g, "[^/]*")
+            .replace(/{{GLOBSTAR}}/g, ".*")
+            .replace(/\?/g, ".");
+
+        // Handle optional groups like ?(x)
+        regexPattern = regexPattern.replace(/\\\?\(([^)]+)\)/g, "($1)?");
+
+        // Handle pattern groups like +(spec|test)
+        regexPattern = regexPattern.replace(/\+\(([^)]+)\)/g, "($1)+");
+
+        try {
+            const regex = new RegExp(`^${regexPattern}$`, "i");
+            return regex.test(filePath);
+        } catch {
+            // If pattern is invalid, fall back to simple check
+            return filePath.includes(".spec.") || filePath.includes(".test.");
+        }
+    }
+
+    findFiles(outDirPath, outDirPath);
+
+    // Apply testPathIgnorePatterns if specified
+    let filteredFiles = testFiles;
+    if (
+        jestOptions.testPathIgnorePatterns &&
+        jestOptions.testPathIgnorePatterns.length > 0
+    ) {
+        filteredFiles = testFiles.filter((file) => {
+            return !jestOptions.testPathIgnorePatterns.some((pattern) => {
+                try {
+                    const regex = new RegExp(pattern);
+                    return regex.test(file);
+                } catch {
+                    return file.includes(pattern);
+                }
+            });
+        });
+    }
+
+    // Apply testPathPattern filter if specified
+    if (jestOptions.testPathPattern) {
+        const pathPatternRegex = new RegExp(jestOptions.testPathPattern, "i");
+        filteredFiles = filteredFiles.filter((file) =>
+            pathPatternRegex.test(file)
         );
     }
 
-    const testPaths =
-        result.results?.testResults?.map((t) => t.testFilePath) || [];
+    // Convert to roblox-jest path format (e.g., "src/__tests__/add.spec")
+    // These paths are relative to projectRoot, use forward slashes, and have no extension
+    const jestPaths = filteredFiles.map((file) => {
+        // Remove .luau extension
+        const withoutExt = file.replace(/\.luau$/, "");
+        // Normalize to forward slashes
+        const normalizedPath = withoutExt.replace(/\\/g, "/");
+        // Prepend the rootDir (since outDir maps to rootDir in the place)
+        return `${rootDir}/${normalizedPath}`;
+    });
 
-    return { testPaths, fullResult: result };
+    if (jestOptions.verbose) {
+        console.log(
+            `Discovered ${jestPaths.length} test file(s) from filesystem`
+        );
+    }
+
+    return jestPaths;
 }
 
 const actualStartTime = Date.now();
@@ -388,44 +506,16 @@ const maxWorkers = jestOptions.maxWorkers || 1;
 const useParallel = maxWorkers > 1;
 
 if (useParallel) {
-    const cacheKey = getCacheKey();
-    const testSuitesCachePath = path.join(cachePath, `test-suites-${cacheKey}.json`);
+    // Discover test files from filesystem (fast, no caching needed)
+    const testSuites = discoverTestFilesFromFilesystem();
 
-    let testSuites;
-    let discoveryResult = null;
-
-    // Check if we have cached test suites
-    if (fs.existsSync(testSuitesCachePath)) {
-        try {
-            testSuites = JSON.parse(fs.readFileSync(testSuitesCachePath, "utf-8"));
-            if (jestOptions.verbose) {
-                console.log(
-                    `Using cached test suites (${testSuites.length} suites)`
-                );
-            }
-        } catch (error) {
-            console.warn("Failed to read test suite cache, will rediscover");
-            testSuites = null;
-        }
-    }
-
-    // Discover test suites if not cached
-    if (!testSuites) {
-        if (jestOptions.verbose) {
-            console.log("Discovering test suites...");
-        }
-        const discovery = await discoverTestSuites();
-        testSuites = discovery.testPaths;
-        discoveryResult = discovery.fullResult;
-        fs.writeFileSync(testSuitesCachePath, JSON.stringify(testSuites, null, 2));
-        if (jestOptions.verbose) {
-            console.log(`Discovered ${testSuites.length} test suites`);
-        }
+    if (jestOptions.verbose) {
+        console.log(`Found ${testSuites.length} test suite(s)`);
     }
 
     if (testSuites.length === 0) {
         console.warn("No test suites found");
-        parsedResults = discoveryResult || {
+        parsedResults = {
             globalConfig: {
                 rootDir: workspaceRoot,
             },
@@ -437,15 +527,12 @@ if (useParallel) {
                 success: true,
             },
         };
-    } else if (testSuites.length === 1 || discoveryResult) {
-        // If only one test suite or we just did discovery, use the discovery result
-        // (no point in splitting one suite, and we already ran all tests for discovery)
-        if (jestOptions.verbose && discoveryResult) {
-            console.log("Using discovery run results (no need to re-run)");
+    } else if (testSuites.length === 1) {
+        // If only one test suite, no point in splitting
+        if (jestOptions.verbose) {
+            console.log("Running single test suite");
         }
-        parsedResults =
-            discoveryResult ||
-            (await executeLuauTest(jestOptions, luauOutputPath));
+        parsedResults = await executeLuauTest(jestOptions, luauOutputPath);
     } else {
         // Split test suites across workers
         const workers = [];
@@ -473,18 +560,18 @@ if (useParallel) {
             workers.map(async (worker) => {
                 const workerOptions = {
                     ...jestOptions,
-                    testPathPattern: undefined,
                 };
 
-                // Create a test path pattern that matches this worker's suites
-                // We'll use the testMatch pattern instead
+                // Create a testPathPattern regex that matches this worker's suites
+                // Each suite is a datamodel path like "ReplicatedStorage.src.__tests__.add.spec"
+                // We escape special regex chars and join with | for OR matching
                 const escapedPaths = worker.suites.map((s) =>
                     s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
                 );
-                workerOptions.testMatch = escapedPaths;
+                workerOptions.testPathPattern = `(${escapedPaths.join("|")})$`;
 
                 const workerOutputPath = path.join(
-                    __dirname,
+                    cachePath,
                     `luau_output_worker_${worker.id}.log`
                 );
 
