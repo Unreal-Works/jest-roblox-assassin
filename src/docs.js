@@ -1,23 +1,23 @@
 import chalk from "chalk";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { ensureCache } from "./cache.js";
 
 const DOCS_URL =
     "https://raw.githubusercontent.com/Roblox/jest-roblox/master/docs/docs/CLI.md";
-const CLI_OPTIONS_PATH = path.join(__dirname, "cli-options.json");
 
 export async function getCliOptions() {
+    const cliOptionsPath = path.join(ensureCache(), "cli-options.json");
+
     // Check if cached JSON exists
-    if (fs.existsSync(CLI_OPTIONS_PATH)) {
+    if (fs.existsSync(cliOptionsPath)) {
         try {
-            const cached = JSON.parse(fs.readFileSync(CLI_OPTIONS_PATH, "utf-8"));
+            const cached = JSON.parse(fs.readFileSync(cliOptionsPath, "utf-8"));
             return cached;
         } catch (error) {
-            console.warn("Failed to read cached CLI options, fetching fresh...");
+            console.warn(
+                "Failed to read cached CLI options, fetching fresh..."
+            );
         }
     }
 
@@ -31,16 +31,15 @@ export async function getCliOptions() {
         }
         const markdown = await response.text();
         const options = parseMarkdown(markdown);
-        
+
         // Save to JSON for future use
-        fs.writeFileSync(CLI_OPTIONS_PATH, JSON.stringify(options, null, 2));
-        
+        fs.mkdirSync(path.dirname(cliOptionsPath), { recursive: true });
+        fs.writeFileSync(cliOptionsPath, JSON.stringify(options, null, 2));
+
         return options;
     } catch (error) {
         console.error(
-            chalk.red(
-                `Error fetching documentation: ${error.message}`
-            )
+            chalk.red(`Error fetching documentation: ${error.message}`)
         );
         return [];
     }
@@ -48,22 +47,18 @@ export async function getCliOptions() {
 
 export async function showHelp() {
     const options = await getCliOptions();
-    
+
     console.log("Usage: jestrbx [TestPathPatterns]");
     console.log("");
 
     for (const doc of options) {
-        console.log(
-            `${chalk.green.bold(doc.name)} ${chalk.cyan(doc.type)}`
-        );
+        console.log(`${chalk.green.bold(doc.name)} ${chalk.cyan(doc.type)}`);
         console.log(`${doc.description.trim()}`);
         console.log("");
     }
 
     console.log(
-        chalk.gray(
-            "Source: https://roblox.github.io/jest-roblox-internal/cli"
-        )
+        chalk.gray("Source: https://roblox.github.io/jest-roblox-internal/cli")
     );
 }
 
