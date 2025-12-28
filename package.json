@@ -1,0 +1,19 @@
+{
+    "name": "roblox-jest-assassin",
+    "version": "1.0.0",
+    "description": "",
+    "license": "MIT",
+    "author": "evilbocchi",
+    "type": "module",
+    "main": "src/index.js",
+    "bin": {
+        "jest": "src/cli.js"
+    },
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "dependencies": {
+        "@jest/reporters": "^30.2.0",
+        "rbxluau": "^1.6.0"
+    }
+}

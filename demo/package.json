@@ -1,0 +1,24 @@
+{
+    "type": "module",
+    "scripts": {
+        "build:src": "rbxtsc",
+        "build:place": "npx rojo build -o place.rbxl",
+        "build": "npm run build:src && npm run build:place",
+        "dev": "rbxtsc -w",
+        "test": "npm run build && jest"
+    },
+    "license": "MIT",
+    "devDependencies": {
+        "@rbxts/compiler-types": "^3.0.0-types.0",
+        "@rbxts/types": "^1.0.813",
+        "axios": "^1.13.2",
+        "dotenv": "^17.2.3",
+        "roblox-ts": "^3.0.0",
+        "typescript": "~5.5.3"
+    },
+    "dependencies": {
+        "@rbxts/jest": "^3.13.3-alpha.2",
+        "@rbxts/jest-globals": "^3.13.3-alpha.2",
+        "@rbxts/services": "^1.5.5"
+    }
+}

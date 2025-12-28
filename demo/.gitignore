@@ -1,0 +1,7 @@
+/place.rbxl
+/include
+/out
+/node_modules
+.env
+.robloxluauexecute
+*.lock

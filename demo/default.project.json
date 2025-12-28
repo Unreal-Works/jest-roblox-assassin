@@ -1,0 +1,32 @@
+{
+    "name": "roblox-ts-game",
+    "globIgnorePaths": ["**/package.json", "**/tsconfig.json"],
+    "emitLegacyScripts": false,
+    "tree": {
+        "$className": "DataModel",
+        "ServerScriptService": {
+            "$className": "ServerScriptService",
+            "$properties": {
+                "LoadStringEnabled": true
+            }
+        },
+        "ReplicatedStorage": {
+            "$className": "ReplicatedStorage",
+            "rbxts_include": {
+                "$path": "include",
+                "node_modules": {
+                    "$className": "Folder",
+                    "@rbxts": {
+                        "$path": "node_modules/@rbxts"
+                    },
+                    "@rbxts-js": {
+                        "$path": "node_modules/@rbxts-js"
+                    }
+                }
+            },
+            "src": {
+                "$path": "out"
+            }
+        }
+    }
+}
