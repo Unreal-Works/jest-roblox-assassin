@@ -75,7 +75,14 @@ for (const opt of cliOptions) {
     }
 }
 
+const argv = process.argv.slice(2);
 program.parse();
+
+// Exit early for info-only flags to avoid running the heavy runner setup
+const infoOnlyFlags = new Set(["--version", "-V", "--help", "-h"]);
+if (argv.some((flag) => infoOnlyFlags.has(flag))) {
+    process.exit(0);
+}
 
 const options = program.opts();
 const [testPathPattern] = program.args;
