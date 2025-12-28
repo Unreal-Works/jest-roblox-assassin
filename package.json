@@ -1,5 +1,5 @@
 {
-    "name": "jest-roblox",
+    "name": "jest-roblox-assassin",
     "version": "1.0.0",
     "description": "Delightful Roblox testing.",
     "license": "MIT",
@@ -8,6 +8,10 @@
     "main": "src/index.js",
     "bin": {
         "jestrbx": "src/cli.js"
+    },
+    "repository": {
+        "url": "https://github.com/Unreal-Works/jest-roblox-assassin.git",
+        "type": "git"
     },
     "scripts": {
         "test": "vitest run",
