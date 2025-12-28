@@ -7,6 +7,7 @@ import fs from "fs";
 import path, { dirname } from "path";
 import * as rbxluau from "rbxluau";
 import { fileURLToPath } from "url";
+import { ResultRewriter } from "./rewriter.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -18,12 +19,75 @@ dotenv.config({ quiet: true });
 // Parse command line arguments
 const args = process.argv.slice(2);
 let placeFile = undefined;
+let projectFile = undefined;
 for (let i = 0; i < args.length; i++) {
     if (args[i] === "--place" && i + 1 < args.length) {
         placeFile = args[i + 1];
         i++; // Skip the next argument since we used it
+    } else if (args[i] === "--project" && i + 1 < args.length) {
+        projectFile = path.resolve(args[i + 1]);
+        i++;
     }
 }
+
+const projectRoot = placeFile
+    ? path.dirname(path.resolve(placeFile))
+    : process.cwd();
+
+if (!projectFile) {
+    const defaultProject = path.join(projectRoot, "default.project.json");
+    if (fs.existsSync(defaultProject)) {
+        projectFile = defaultProject;
+    }
+}
+
+const tsConfigPath = path.join(projectRoot, "tsconfig.json");
+
+const stripJsonComments = (text) =>
+    text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+const readJsonWithComments = (jsonPath) => {
+    if (!fs.existsSync(jsonPath)) return undefined;
+    const raw = fs.readFileSync(jsonPath, "utf-8");
+    try {
+        return JSON.parse(stripJsonComments(raw));
+    } catch (error) {
+        return undefined;
+    }
+};
+
+const compilerOptions =
+    readJsonWithComments(tsConfigPath)?.compilerOptions || {};
+
+const rootDir = compilerOptions.rootDir || "src";
+const outDir = compilerOptions.outDir || "out";
+
+const findDatamodelPath = (tree, targetPath, currentPath = []) => {
+    const normalize = (p) =>
+        path.normalize(p).replace(/[\\\/]$/, "").replace(/\\/g, "/");
+    const normalizedTarget = normalize(targetPath);
+
+    if (tree.$path && normalize(tree.$path) === normalizedTarget) {
+        return currentPath;
+    }
+
+    for (const [key, value] of Object.entries(tree)) {
+        if (key.startsWith("$")) continue;
+        if (typeof value !== "object") continue;
+
+        const found = findDatamodelPath(value, targetPath, [
+            ...currentPath,
+            key,
+        ]);
+        if (found) return found;
+    }
+    return undefined;
+};
+
+const projectJson = projectFile ? readJsonWithComments(projectFile) : undefined;
+let datamodelPrefixSegments = projectJson
+    ? findDatamodelPath(projectJson.tree, outDir)
+    : undefined;
 
 // Get test filter from environment variable (set by VS Code extension)
 const testNamePattern = process.env.JEST_TEST_NAME_PATTERN || "";
@@ -105,10 +169,17 @@ if (!successMatch || !resultMatch) {
 
 const parsedResults = JSON.parse(resultMatch[1]);
 
+new ResultRewriter({
+    projectRoot,
+    rootDir,
+    outDir,
+    datamodelPrefixSegments,
+}).rewriteParsedResults(parsedResults.results);
+
 // Fix globalConfig - set rootDir to current working directory if null
 const globalConfig = {
     ...parsedResults.globalConfig,
-    rootDir: parsedResults.globalConfig.rootDir || process.cwd(),
+    rootDir: parsedResults.globalConfig.rootDir || projectRoot,
     testPathPatterns,
 };
 const reporterClasses = [DefaultReporter, SummaryReporter];
