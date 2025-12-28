@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 import path, { dirname } from "path";
 import * as rbxluau from "rbxluau";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { getCliOptions } from "./docs.js";
 import { ResultRewriter } from "./rewriter.js";
 
@@ -29,7 +29,8 @@ program
     .version("1.0.0")
     .argument("[testPathPattern]", "test path pattern to match")
     .option("--place <file>", "path to Roblox place file")
-    .option("--project <file>", "path to project JSON file");
+    .option("--project <file>", "path to project JSON file")
+    .option("--config <file>", "path to Jest config file");
 
 // Add options from fetched documentation
 function collect(value, previous) {
@@ -74,8 +75,26 @@ program.parse();
 const options = program.opts();
 const [testPathPattern] = program.args;
 
-// Build jestOptions from parsed arguments
-const jestOptions = {};
+// Load config file if specified
+let configFileOptions = {};
+if (options.config) {
+    const configPath = path.resolve(options.config);
+    if (!fs.existsSync(configPath)) {
+        console.error(`Config file not found: ${configPath}`);
+        process.exit(1);
+    }
+    try {
+        const configUrl = pathToFileURL(configPath).href;
+        const configModule = await import(configUrl);
+        configFileOptions = configModule.default || configModule;
+    } catch (error) {
+        console.error(`Failed to load config file: ${error.message}`);
+        process.exit(1);
+    }
+}
+
+// Build jestOptions from config file first, then override with CLI arguments
+const jestOptions = { ...configFileOptions };
 if (options.ci) jestOptions.ci = true;
 if (options.clearMocks) jestOptions.clearMocks = true;
 if (options.debug) jestOptions.debug = true;
@@ -329,11 +348,58 @@ const globalConfig = {
     rootDir: parsedResults.globalConfig.rootDir || workspaceRoot,
     testPathPatterns,
 };
-console.log(globalConfig);
 
-const reporterClasses = [DefaultReporter, SummaryReporter];
-for (const Reporter of reporterClasses) {
-    const reporter = new Reporter(globalConfig);
+const reporterConfigs = [];
+
+if (jestOptions.reporters && jestOptions.reporters.length > 0) {
+    // Custom reporters specified
+    for (const reporterEntry of jestOptions.reporters) {
+        // Reporter can be a string or [string, options]
+        const reporterName = Array.isArray(reporterEntry)
+            ? reporterEntry[0]
+            : reporterEntry;
+        const reporterOptions = Array.isArray(reporterEntry)
+            ? reporterEntry[1]
+            : undefined;
+
+        if (reporterName === "default") {
+            reporterConfigs.push({
+                Reporter: DefaultReporter,
+                options: reporterOptions,
+            });
+        } else if (reporterName === "summary") {
+            reporterConfigs.push({
+                Reporter: SummaryReporter,
+                options: reporterOptions,
+            });
+        } else {
+            try {
+                const ReporterModule = await import(reporterName);
+                if (ReporterModule && ReporterModule.default) {
+                    reporterConfigs.push({
+                        Reporter: ReporterModule.default,
+                        options: reporterOptions,
+                    });
+                } else {
+                    console.warn(
+                        `Reporter module "${reporterName}" does not have a default export.`
+                    );
+                }
+            } catch (error) {
+                console.warn(
+                    `Failed to load reporter module "${reporterName}": ${error.message}`
+                );
+            }
+        }
+    }
+} else {
+    // Default reporters
+    reporterConfigs.push({ Reporter: DefaultReporter, options: undefined });
+    reporterConfigs.push({ Reporter: SummaryReporter, options: undefined });
+}
+
+for (const { Reporter, options: reporterOptions } of reporterConfigs) {
+    const reporter = new Reporter(globalConfig, reporterOptions);
 
     // Create aggregated results in the format Jest expects
     const aggregatedResults = {
@@ -345,25 +411,33 @@ for (const Reporter of reporterClasses) {
         startTime: actualStartTime,
     };
 
-    // Call reporter lifecycle methods
-    reporter.onRunStart(aggregatedResults, {
-        estimatedTime: 0,
-        showStatus: true,
-    });
+    // Call reporter lifecycle methods if they exist
+    if (typeof reporter.onRunStart === "function") {
+        await Promise.resolve(reporter.onRunStart(aggregatedResults, {
+            estimatedTime: 0,
+            showStatus: true,
+        }));
+    }
 
     // Report each test result
     if (parsedResults.results.testResults) {
         for (const testResult of parsedResults.results.testResults) {
-            reporter.onTestResult(
-                { context: { config: globalConfig } },
-                testResult,
-                aggregatedResults
-            );
+            if (typeof reporter.onTestResult === "function") {
+                await Promise.resolve(reporter.onTestResult(
+                    { context: { config: globalConfig } },
+                    testResult,
+                    aggregatedResults
+                ));
+            } else if (typeof reporter.onTestStart === "function") {
+                await Promise.resolve(reporter.onTestStart(testResult));
+            }
         }
     }
 
     // Complete the run
-    reporter.onRunComplete(new Set(), aggregatedResults);
+    if (typeof reporter.onRunComplete === "function") {
+        await Promise.resolve(reporter.onRunComplete(new Set(), aggregatedResults));
+    }
 }
 
 // Exit with appropriate code
