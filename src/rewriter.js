@@ -9,7 +9,14 @@ export class ResultRewriter {
         /@rbxts-js\.JestCircus/i,
     ];
 
-    constructor({ projectRoot, rootDir, outDir, datamodelPrefixSegments }) {
+    constructor({
+        workspaceRoot,
+        projectRoot,
+        rootDir,
+        outDir,
+        datamodelPrefixSegments,
+    }) {
+        this.workspaceRoot = workspaceRoot || projectRoot;
         this.projectRoot = projectRoot;
         this.rootDir = rootDir;
         this.outDir = outDir;
@@ -130,7 +137,7 @@ export class ResultRewriter {
      */
     formatPath(filePath) {
         return path
-            .relative(this.projectRoot, filePath)
+            .relative(this.workspaceRoot, filePath)
             .split(path.sep)
             .join("/");
     }
@@ -362,7 +369,7 @@ export class ResultRewriter {
             const [, filePart, lineStr, colStr] = match;
             const absPath = path.isAbsolute(filePart)
                 ? filePart
-                : path.join(this.projectRoot, filePart);
+                : path.join(this.workspaceRoot, filePart);
             if (fs.existsSync(absPath)) {
                 candidates.push({
                     absPath,

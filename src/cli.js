@@ -30,14 +30,57 @@ for (let i = 0; i < args.length; i++) {
     }
 }
 
-const projectRoot = placeFile
+const workspaceRoot = placeFile
     ? path.dirname(path.resolve(placeFile))
     : process.cwd();
+
+let projectRoot = workspaceRoot;
 
 if (!projectFile) {
     const defaultProject = path.join(projectRoot, "default.project.json");
     if (fs.existsSync(defaultProject)) {
         projectFile = defaultProject;
+    } else {
+        // Search up to 2 levels deep
+        const getSubdirs = (dir) => {
+            try {
+                return fs.readdirSync(dir, { withFileTypes: true })
+                    .filter(
+                        (dirent) =>
+                            dirent.isDirectory() &&
+                            !dirent.name.startsWith(".") &&
+                            dirent.name !== "node_modules"
+                    )
+                    .map((dirent) => path.join(dir, dirent.name));
+            } catch {
+                return [];
+            }
+        };
+
+        const level1 = getSubdirs(projectRoot);
+        for (const dir of level1) {
+            const p = path.join(dir, "default.project.json");
+            if (fs.existsSync(p)) {
+                projectFile = p;
+                projectRoot = dir;
+                break;
+            }
+        }
+
+        if (!projectFile) {
+            for (const dir of level1) {
+                const level2 = getSubdirs(dir);
+                for (const dir2 of level2) {
+                    const p = path.join(dir2, "default.project.json");
+                    if (fs.existsSync(p)) {
+                        projectFile = p;
+                        projectRoot = dir2;
+                        break;
+                    }
+                }
+                if (projectFile) break;
+            }
+        }
     }
 }
 
@@ -64,7 +107,10 @@ const outDir = compilerOptions.outDir || "out";
 
 const findDatamodelPath = (tree, targetPath, currentPath = []) => {
     const normalize = (p) =>
-        path.normalize(p).replace(/[\\\/]$/, "").replace(/\\/g, "/");
+        path
+            .normalize(p)
+            .replace(/[\\\/]$/, "")
+            .replace(/\\/g, "/");
     const normalizedTarget = normalize(targetPath);
 
     if (tree.$path && normalize(tree.$path) === normalizedTarget) {
@@ -88,6 +134,13 @@ const projectJson = projectFile ? readJsonWithComments(projectFile) : undefined;
 let datamodelPrefixSegments = projectJson
     ? findDatamodelPath(projectJson.tree, outDir)
     : undefined;
+
+if (!datamodelPrefixSegments || datamodelPrefixSegments.length === 0) {
+    console.warn(
+        `Could not determine datamodel prefix for outDir "${outDir}".`
+    );
+    datamodelPrefixSegments = ["ReplicatedStorage", ...rootDir.split(path.sep)];
+}
 
 // Get test filter from environment variable (set by VS Code extension)
 const testNamePattern = process.env.JEST_TEST_NAME_PATTERN || "";
@@ -170,6 +223,7 @@ if (!successMatch || !resultMatch) {
 const parsedResults = JSON.parse(resultMatch[1]);
 
 new ResultRewriter({
+    workspaceRoot,
     projectRoot,
     rootDir,
     outDir,
@@ -179,7 +233,7 @@ new ResultRewriter({
 // Fix globalConfig - set rootDir to current working directory if null
 const globalConfig = {
     ...parsedResults.globalConfig,
-    rootDir: parsedResults.globalConfig.rootDir || projectRoot,
+    rootDir: parsedResults.globalConfig.rootDir || workspaceRoot,
     testPathPatterns,
 };
 const reporterClasses = [DefaultReporter, SummaryReporter];
