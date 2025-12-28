@@ -4,7 +4,8 @@
         "build:src": "rbxtsc",
         "build:place": "npx rojo build -o place.rbxl",
         "build": "npm run build:src && npm run build:place",
-        "dev": "rbxtsc -w"
+        "dev": "rbxtsc -w",
+        "test": "node ../src/cli.js --place place.rbxl"
     },
     "license": "MIT",
     "devDependencies": {

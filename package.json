@@ -11,10 +11,11 @@
     },
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
-        "demo": "cd demo && npm run build && cd .. && npx jest --place demo/place.rbxl"
+        "demo": "cd demo && npm run test"
     },
     "dependencies": {
         "@jest/reporters": "^30.2.0",
+        "chalk": "^5.6.2",
         "rbxluau": "^1.6.0"
     }
 }
