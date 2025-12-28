@@ -10,7 +10,8 @@
         "jest": "src/cli.js"
     },
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "demo": "cd demo && npm run build && cd .. && npx jest --place demo/place.rbxl"
     },
     "dependencies": {
         "@jest/reporters": "^30.2.0",

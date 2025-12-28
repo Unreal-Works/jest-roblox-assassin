@@ -4,8 +4,7 @@
         "build:src": "rbxtsc",
         "build:place": "npx rojo build -o place.rbxl",
         "build": "npm run build:src && npm run build:place",
-        "dev": "rbxtsc -w",
-        "test": "npm run build && jest"
+        "dev": "rbxtsc -w"
     },
     "license": "MIT",
     "devDependencies": {
