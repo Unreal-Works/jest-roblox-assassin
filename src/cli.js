@@ -19,7 +19,8 @@ program
     .version("1.0.0")
     .argument("[testPathPattern]", "test path pattern to match")
     .option("--place <file>", "path to Roblox place file")
-    .option("--project <file>", "path to project JSON file")
+    .option("--project <file>", "path to Rojo project JSON file. Used to map output back to source files")
+    .option("--tsconfig <file>", "path to tsconfig.json file. Used to map output back to source files")
     .option("--config <file>", "path to Jest config file")
     .option(
         "--maxWorkers <number>",

@@ -7,9 +7,9 @@ import { pathToFileURL } from "url";
 import { ensureCache } from "./cache.js";
 import {
     discoverCompilerOptions,
-    discoverPlaceFile,
     discoverRojoProject,
     discoverTestFilesFromFilesystem,
+    findPlaceFile,
 } from "./discovery.js";
 import { ResultRewriter } from "./rewriter.js";
 
@@ -25,7 +25,19 @@ const luauOutputPath = path.join(cachePath, "luau_output.log");
 export default async function runJestRoblox(options) {
     // Discover place file if not specified
     if (!options.place) {
-        options.place = discoverPlaceFile();
+        options.place = findPlaceFile();
+    }
+    if (!options.skipExecution) {
+        if (!options.place) {
+            console.error(
+                "--place option is required to run tests. No .rbxl or .rbxlx file found in current directory or nearby."
+            );
+            return 1;
+        }
+        if (!fs.existsSync(options.place)) {
+            console.error("Invalid --place file specified: " + options.place);
+            return 1;
+        }
     }
 
     // Load config file if specified
@@ -56,7 +68,7 @@ export default async function runJestRoblox(options) {
     const rojoProject = discoverRojoProject(
         options.project ? path.resolve(options.project) : undefined
     );
-    const compilerOptions = discoverCompilerOptions();
+    const compilerOptions = discoverCompilerOptions(options.tsconfig);
 
     const actualStartTime = Date.now();
     let parsedResults;
@@ -492,13 +504,6 @@ return game:GetService("HttpService"):JSONEncode(resolved)
     let luauExitCode = 0;
 
     if (!options.skipExecution) {
-        if (!options.place) {
-            console.error(
-                "--place option is required to run tests. No .rbxl or .rbxlx file found in current directory or nearby."
-            );
-            return;
-        }
-
         luauExitCode = await executeLuau(luauScript, {
             place: options.place,
             silent: true,

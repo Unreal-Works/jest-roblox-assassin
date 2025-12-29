@@ -17,3 +17,4 @@ export function ensureCache() {
     }
     return CACHE_FOLDER_PATH;
 }
+

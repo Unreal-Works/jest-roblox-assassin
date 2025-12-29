@@ -94,7 +94,8 @@ export function discoverRojoProject(projectFile = null) {
     }
 
     const startDir = process.cwd();
-    const predicate = (filePath) => path.basename(filePath) === "default.project.json";
+    const predicate = (filePath) =>
+        path.basename(filePath) === "default.project.json";
 
     // Search upwards first
     projectFile = findFileUpwards(startDir, predicate);
@@ -119,8 +120,8 @@ export function discoverRojoProject(projectFile = null) {
  * @param {string} cwd The current working directory to start searching from.
  * @returns {string | null} The path to the place file, or null if not found.
  */
-export function discoverPlaceFile(cwd = process.cwd()) {
-    const placeExtensions = ['.rbxl', '.rbxlx'];
+export function findPlaceFile(cwd = process.cwd()) {
+    const placeExtensions = [".rbxl", ".rbxlx"];
 
     const isPlaceFile = (filePath) => {
         const ext = path.extname(filePath).toLowerCase();
@@ -142,11 +143,13 @@ export function discoverPlaceFile(cwd = process.cwd()) {
  * Discovers TypeScript compiler options from tsconfig.json.
  * If not found, defaults to rootDir: "src" and outDir: "out".
  * If the specified directories do not exist, will default rootDir to "." and outDir to rootDir.
- * @param {string} cwd The current working directory to look for tsconfig.json.
+ * @param {string} file Optional path to a known tsconfig.json file.
  * @returns {{ rootDir: string, outDir: string }} The discovered rootDir and outDir.
  */
-export function discoverCompilerOptions(cwd = process.cwd()) {
-    const tsConfigPath = path.join(cwd, "tsconfig.json");
+export function discoverCompilerOptions(file = null) {
+    if (!file || !fs.existsSync(file)) {
+        file = path.join(process.cwd(), "tsconfig.json");
+    }
 
     const stripJsonComments = (text) =>
         text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
@@ -161,8 +164,7 @@ export function discoverCompilerOptions(cwd = process.cwd()) {
         }
     };
 
-    const compilerOptions =
-        readJsonWithComments(tsConfigPath)?.compilerOptions || {};
+    const compilerOptions = readJsonWithComments(file)?.compilerOptions || {};
     const dirs = {
         rootDir: compilerOptions.rootDir || "src",
         outDir: compilerOptions.outDir || "out",

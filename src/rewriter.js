@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import fs from "fs";
 import path from "path";
+import util from "util";
 
 export class ResultRewriter {
     constructor({ rojoProject, compilerOptions }) {
@@ -42,7 +43,12 @@ export class ResultRewriter {
                             relativePath
                         );
                         // if called init, adjust to index
-                        // TODO
+                        if (path.basename(sourcePath).startsWith("init.")) {
+                            sourcePath = path.join(
+                                path.dirname(sourcePath),
+                                "index" + path.extname(sourcePath)
+                            );
+                        }
 
                         // check if sourcePath exists
                         if (!fs.existsSync(sourcePath)) {
@@ -289,24 +295,13 @@ export class ResultRewriter {
     }
 
     /**
-     * Strips ANSI escape codes from a string.
-     * @param {string} str The string to strip.
-     * @returns {string} The stripped string.
-     */
-    stripAnsi(str) {
-        return typeof str === "string"
-            ? str.replace(/\u001b\[[0-9;]*m/g, "")
-            : str;
-    }
-
-    /**
      * Parses a stack frame from text and returns file path, line, and column.
      * @param {string} text The text to parse.
      * @returns {{ absPath: string, line: number, column: number } | undefined} The parsed frame info or undefined if not found.
      */
     parseFrame(text) {
         if (!text) return undefined;
-        const cleanText = this.stripAnsi(text);
+        const cleanText = util.stripVTControlCharacters(text);
         // Match patterns like "src/test.ts:10" or "C:\path\test.ts:10"
         // We look for something that looks like a file path followed by a colon and a number
         const pattern =
