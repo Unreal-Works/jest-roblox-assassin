@@ -2,7 +2,7 @@ import { TestPathPatterns } from "@jest/pattern";
 import { DefaultReporter, SummaryReporter } from "@jest/reporters";
 import fs from "fs";
 import path from "path";
-import * as rbxluau from "rbxluau";
+import { executeLuau } from "rbxluau";
 import { pathToFileURL } from "url";
 import { ensureCache } from "./cache.js";
 import {
@@ -22,7 +22,7 @@ const luauOutputPath = path.join(cachePath, "luau_output.log");
  * @param {object} options The CLI options to run JestRoblox with.
  * @returns {Promise<number>} Exit code (0 for success, 1 for failure).
  */
-export async function runJestRoblox(options) {
+export default async function runJestRoblox(options) {
     // Discover place file if not specified
     if (!options.place) {
         options.place = discoverPlaceFile();
@@ -297,10 +297,7 @@ export async function runJestRoblox(options) {
         parsedResults.results
     );
 
-    if (
-        options.passWithNoTests &&
-        parsedResults.results.numTotalTests === 0
-    ) {
+    if (options.passWithNoTests && parsedResults.results.numTotalTests === 0) {
         parsedResults.results.success = true;
     }
 
@@ -437,7 +434,7 @@ export async function runJestRoblox(options) {
  * @param {string} workerOutputPath The file path to write the Luau output log.
  * @returns {Promise<any>} The parsed results from the Luau script.
  */
-export async function executeLuauTest(options, workerOutputPath) {
+async function executeLuauTest(options, workerOutputPath) {
     const luauScript = `
 local jestOptions = game:GetService("HttpService"):JSONDecode([===[${JSON.stringify(
         options
@@ -502,7 +499,7 @@ return game:GetService("HttpService"):JSONEncode(resolved)
             return;
         }
 
-        luauExitCode = await rbxluau.executeLuau(luauScript, {
+        luauExitCode = await executeLuau(luauScript, {
             place: options.place,
             silent: true,
             exit: false,

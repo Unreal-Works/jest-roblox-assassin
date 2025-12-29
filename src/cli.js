@@ -3,7 +3,7 @@
 import { Command } from "commander";
 import dotenv from "dotenv";
 import { getCliOptions } from "./docs.js";
-import { runJestRoblox } from "./runner.js";
+import runJestRoblox from "./runJestRoblox.js";
 
 // Load environment variables from .env file
 dotenv.config({ quiet: true });
