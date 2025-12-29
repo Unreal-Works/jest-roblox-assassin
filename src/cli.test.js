@@ -89,25 +89,6 @@ describe("CLI Integration Tests", () => {
         );
     });
 
-    describe("place file handling", () => {
-        it.skipIf(shouldSkip)("should require place file", async () => {
-            const { code, stderr } = await runCli([]);
-            // Should fail without a place file
-            expect(code).toBe(1);
-        });
-
-        it.concurrent.skipIf(shouldSkip)(
-            "should accept place file via --place option",
-            async () => {
-                const { stderr } = await runCli(["--place", demoPlaceFile]);
-
-                // May fail for other reasons (no JestCore, etc), but should not complain about missing place
-                expect(stderr).not.toContain("place file not found");
-            },
-            15000
-        );
-    });
-
     describe("test filtering", () => {
         it.concurrent.skipIf(shouldSkip)(
             "should support testPathPattern as argument",
@@ -256,7 +237,7 @@ describe("CLI Integration Tests", () => {
             15000
         );
 
-        it.concurrent.skipIf(shouldSkip)(
+        it.skipIf(shouldSkip)(
             "should accept --passWithNoTests",
             async () => {
                 const { code } = await runCli(

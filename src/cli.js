@@ -11,6 +11,7 @@ import { pathToFileURL } from "url";
 import { ensureCache } from "./cache.js";
 import {
     discoverCompilerOptions,
+    discoverPlaceFile,
     discoverRojoProject,
     discoverTestFilesFromFilesystem,
 } from "./discovery.js";
@@ -92,6 +93,11 @@ if (argv.some((flag) => infoOnlyFlags.has(flag))) {
 
 const options = program.opts();
 const [testPathPattern] = program.args;
+
+// Discover place file if not specified
+if (!options.place) {
+    options.place = discoverPlaceFile();
+}
 
 // Load config file if specified
 let configFileOptions = {};
@@ -213,7 +219,7 @@ return game:GetService("HttpService"):JSONEncode(resolved)
 
     if (!options.skipExecution) {
         if (!options.place) {
-            console.error("--place option is required to run tests");
+            console.error("--place option is required to run tests. No .rbxl or .rbxlx file found in current directory or nearby.");
             process.exit(1);
         }
 

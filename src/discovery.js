@@ -4,6 +4,83 @@ import process from "process";
 import { createSourcemap } from "./sourcemap.js";
 
 /**
+ * Gets subdirectories of a directory, excluding hidden dirs and node_modules.
+ * @param {string} dir The directory to scan.
+ * @returns {string[]} Array of subdirectory paths.
+ */
+function getSubdirs(dir) {
+    try {
+        return fs
+            .readdirSync(dir, { withFileTypes: true })
+            .filter(
+                (dirent) =>
+                    dirent.isDirectory() &&
+                    !dirent.name.startsWith(".") &&
+                    dirent.name !== "node_modules"
+            )
+            .map((dirent) => path.join(dir, dirent.name));
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Searches upwards from startDir for a file matching the predicate.
+ * @param {string} startDir The directory to start searching from.
+ * @param {(filePath: string) => boolean} predicate Function to test each file.
+ * @returns {string | null} The path to the first matching file, or null.
+ */
+function findFileUpwards(startDir, predicate) {
+    let current = startDir;
+    while (current !== path.parse(current).root) {
+        try {
+            const files = fs.readdirSync(current);
+            for (const file of files) {
+                const filePath = path.join(current, file);
+                if (fs.statSync(filePath).isFile() && predicate(filePath)) {
+                    return filePath;
+                }
+            }
+        } catch {
+            // Ignore errors
+        }
+        current = path.dirname(current);
+    }
+    return null;
+}
+
+/**
+ * Searches up to maxDepth levels deep from startDir for a file matching the predicate.
+ * @param {string} startDir The directory to start searching from.
+ * @param {(filePath: string) => boolean} predicate Function to test each file.
+ * @param {number} maxDepth Maximum depth to search.
+ * @returns {string | null} The path to the first matching file, or null.
+ */
+function findFileDeep(startDir, predicate, maxDepth = 2) {
+    const search = (dirs, depth) => {
+        if (depth > maxDepth) return null;
+        for (const dir of dirs) {
+            try {
+                const files = fs.readdirSync(dir);
+                for (const file of files) {
+                    const filePath = path.join(dir, file);
+                    if (fs.statSync(filePath).isFile() && predicate(filePath)) {
+                        return filePath;
+                    }
+                }
+            } catch {
+                // Ignore errors
+            }
+            const subdirs = getSubdirs(dir);
+            const result = search(subdirs, depth + 1);
+            if (result) return result;
+        }
+        return null;
+    };
+    return search(getSubdirs(startDir), 1);
+}
+
+/**
  * Discovers the Rojo project file and root directory.
  * @param {string | null} projectFile Optional path to a known Rojo project file.
  */
@@ -16,69 +93,49 @@ export function discoverRojoProject(projectFile = null) {
         };
     }
 
-    let projectRoot = process.cwd();
+    const startDir = process.cwd();
+    const predicate = (filePath) => path.basename(filePath) === "default.project.json";
 
-    // Search upwards for default.project.json
-    let current = projectRoot;
-    while (current !== path.parse(current).root) {
-        const p = path.join(current, "default.project.json");
-        if (fs.existsSync(p)) {
-            projectFile = p;
-            projectRoot = current;
-            break;
-        }
-        current = path.dirname(current);
-    }
+    // Search upwards first
+    projectFile = findFileUpwards(startDir, predicate);
 
     if (!projectFile) {
-        // Search up to 2 levels deep from workspaceRoot
-        const getSubdirs = (dir) => {
-            try {
-                return fs
-                    .readdirSync(dir, { withFileTypes: true })
-                    .filter(
-                        (dirent) =>
-                            dirent.isDirectory() &&
-                            !dirent.name.startsWith(".") &&
-                            dirent.name !== "node_modules"
-                    )
-                    .map((dirent) => path.join(dir, dirent.name));
-            } catch {
-                return [];
-            }
-        };
-
-        const level1 = getSubdirs(projectRoot);
-        for (const dir of level1) {
-            const p = path.join(dir, "default.project.json");
-            if (fs.existsSync(p)) {
-                projectFile = p;
-                projectRoot = dir;
-                break;
-            }
-        }
-
-        if (!projectFile) {
-            for (const dir of level1) {
-                const level2 = getSubdirs(dir);
-                for (const dir2 of level2) {
-                    const p = path.join(dir2, "default.project.json");
-                    if (fs.existsSync(p)) {
-                        projectFile = p;
-                        projectRoot = dir2;
-                        break;
-                    }
-                }
-                if (projectFile) break;
-            }
-        }
+        // Search up to 2 levels deep
+        projectFile = findFileDeep(startDir, predicate, 2);
     }
+
+    const projectRoot = projectFile ? path.dirname(projectFile) : startDir;
 
     return {
         file: projectFile,
         root: projectRoot,
         sourcemap: projectFile ? createSourcemap(projectFile) : undefined,
     };
+}
+
+/**
+ * Discovers a Roblox place file (.rbxl or .rbxlx).
+ * Searches upwards from cwd, then up to 2 levels deep.
+ * @param {string} cwd The current working directory to start searching from.
+ * @returns {string | null} The path to the place file, or null if not found.
+ */
+export function discoverPlaceFile(cwd = process.cwd()) {
+    const placeExtensions = ['.rbxl', '.rbxlx'];
+
+    const isPlaceFile = (filePath) => {
+        const ext = path.extname(filePath).toLowerCase();
+        return placeExtensions.includes(ext);
+    };
+
+    // Search upwards first
+    let placeFile = findFileUpwards(cwd, isPlaceFile);
+
+    if (!placeFile) {
+        // Search up to 2 levels deep
+        placeFile = findFileDeep(cwd, isPlaceFile, 2);
+    }
+
+    return placeFile;
 }
 
 /**
