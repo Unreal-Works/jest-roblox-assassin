@@ -2,13 +2,8 @@
 
 import { Command } from "commander";
 import dotenv from "dotenv";
-import path from "path";
-import { ensureCache } from "./cache.js";
 import { getCliOptions } from "./docs.js";
 import { runJestRoblox } from "./runner.js";
-
-const cachePath = ensureCache();
-const luauOutputPath = path.join(cachePath, "luau_output.log");
 
 // Load environment variables from .env file
 dotenv.config({ quiet: true });
@@ -44,11 +39,6 @@ program
         "Watch files for changes and rerun all tests when something changes. If you want to re-run only the tests that depend on the changed files, use the --watch option."
     );
 
-// Add options from fetched documentation
-function collect(value, previous) {
-    return previous.concat([value]);
-}
-
 for (const opt of cliOptions) {
     const flagName = opt.name.replace(/^--/, "");
     const isArray = opt.type.includes("array");
@@ -75,7 +65,9 @@ for (const opt of cliOptions) {
     const description = opt.description.split("\n")[0]; // First line only
 
     if (isArray) {
-        program.option(flags, description, collect, []);
+        program.option(flags, description, (value, previous) => {
+            return previous ? previous.concat([value]) : [value];
+        });
     } else if (isNumber) {
         program.option(flags, description, Number);
     } else {

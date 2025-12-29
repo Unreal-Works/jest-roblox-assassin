@@ -34,53 +34,23 @@ export async function runJestRoblox(options) {
         const configPath = path.resolve(options.config);
         if (!fs.existsSync(configPath)) {
             console.error(`Config file not found: ${configPath}`);
-            process.exit(1);
+            return 1;
         }
         try {
             const configUrl = pathToFileURL(configPath).href;
             const configModule = await import(configUrl);
             configFileOptions = configModule.default || configModule;
+            for (const key of Object.keys(configFileOptions)) {
+                options[key] = configFileOptions[key];
+            }
         } catch (error) {
             console.error(`Failed to load config file: ${error.message}`);
-            process.exit(1);
+            return 1;
         }
     }
 
-    // Build jestOptions from config file first, then override with CLI arguments
-    const jestOptions = { ...configFileOptions };
-    if (options.ci) jestOptions.ci = true;
-    if (options.clearMocks) jestOptions.clearMocks = true;
-    if (options.debug) jestOptions.debug = true;
-    if (options.expand) jestOptions.expand = true;
-    if (options.json) jestOptions.json = true;
-    if (options.listTests) jestOptions.listTests = true;
-    if (options.noStackTrace) jestOptions.noStackTrace = true;
-    if (options.passWithNoTests) jestOptions.passWithNoTests = true;
-    if (options.resetMocks) jestOptions.resetMocks = true;
-    if (options.showConfig) jestOptions.showConfig = true;
-    if (options.updateSnapshot) jestOptions.updateSnapshot = true;
-    if (options.verbose) jestOptions.verbose = true;
-    if (options.testLocationInResults) jestOptions.testLocationInResults = true;
-    if (options.testTimeout) jestOptions.testTimeout = options.testTimeout;
-    if (options.maxWorkers) jestOptions.maxWorkers = options.maxWorkers;
-    if (options.testNamePattern)
-        jestOptions.testNamePattern = options.testNamePattern;
-    if (options.testPathPattern)
-        jestOptions.testPathPattern = options.testPathPattern;
-    if (options.testMatch && options.testMatch.length > 0)
-        jestOptions.testMatch = options.testMatch;
-    if (
-        options.testPathIgnorePatterns &&
-        options.testPathIgnorePatterns.length > 0
-    ) {
-        jestOptions.testPathIgnorePatterns = options.testPathIgnorePatterns;
-    }
-    if (options.reporters && options.reporters.length > 0)
-        jestOptions.reporters = options.reporters;
-
-    // Get test filter from environment variable (set by VS Code extension)
     if (process.env.JEST_TEST_NAME_PATTERN) {
-        jestOptions.testNamePattern = process.env.JEST_TEST_NAME_PATTERN;
+        options.testNamePattern = process.env.JEST_TEST_NAME_PATTERN;
     }
 
     const rojoProject = discoverRojoProject(
@@ -88,149 +58,31 @@ export async function runJestRoblox(options) {
     );
     const compilerOptions = discoverCompilerOptions();
 
-    // Helper function to execute Luau and parse results
-    async function executeLuauTest(testOptions, workerOutputPath) {
-        const luauScript = `
-local jestOptions = game:GetService("HttpService"):JSONDecode([===[${JSON.stringify(
-            testOptions
-        )}]===])
--- These options are handled in JS
-jestOptions.reporters = {}
-jestOptions.json = false
-
-local runCLI
-local projects = {}
-for i, v in pairs(game:GetDescendants()) do
-    if v.Name == "cli" and v.Parent.Name == "JestCore" and v:IsA("ModuleScript") then
-        local reading = require(v)
-        if reading and reading.runCLI then
-            if runCLI then
-                warn("Multiple JestCore CLI modules found;" .. v:GetFullName())
-            end
-            runCLI = reading.runCLI
-        end
-    elseif v.Name == "jest.config" and v:IsA("ModuleScript") then
-        local fullName = v:GetFullName()
-        if not fullName:find("rbxts_include") and not fullName:find("node_modules") then
-            table.insert(projects, v.Parent)
-        end
-    end
-end
-
-if not runCLI then
-    error("Could not find JestCore CLI module")
-end
-if #projects == 0 then
-    error("Could not find any jest.config modules")
-end
-
-local success, resolved = runCLI(game, jestOptions, projects):await()
-
-if jestOptions.showConfig or jestOptions.listTests then
-    return 0
-end
-
-print("__SUCCESS_START__")
-print(success)
-print("__SUCCESS_END__")
-print("__PROJECTS_START__")
-local fullNameProjects = {}
-for i, v in pairs(projects) do
-    table.insert(fullNameProjects, v:GetFullName())
-end
-print(game:GetService("HttpService"):JSONEncode(fullNameProjects))
-print("__PROJECTS_END__")
-print("__RESULT_START__")
-return game:GetService("HttpService"):JSONEncode(resolved)
-`;
-
-        let luauExitCode = 0;
-
-        if (!options.skipExecution) {
-            if (!options.place) {
-                console.error(
-                    "--place option is required to run tests. No .rbxl or .rbxlx file found in current directory or nearby."
-                );
-                process.exit(1);
-            }
-
-            luauExitCode = await rbxluau.executeLuau(luauScript, {
-                place: options.place,
-                silent: true,
-                exit: false,
-                out: workerOutputPath,
-            });
-        }
-        const outputLog = fs.readFileSync(workerOutputPath, "utf-8");
-
-        if (luauExitCode !== 0) {
-            throw new Error(
-                `Luau script execution failed with exit code: ${luauExitCode}\n${outputLog}`
-            );
-        }
-
-        if (testOptions.listTests) {
-            return outputLog;
-        }
-
-        if (testOptions.showConfig) {
-            const firstBrace = outputLog.indexOf("{");
-            const lastBrace = outputLog.lastIndexOf("}");
-            return {
-                config: JSON.parse(outputLog.slice(firstBrace, lastBrace + 1)),
-            };
-        }
-
-        const successMatch = outputLog.match(
-            /__SUCCESS_START__\s*(true|false)\s*__SUCCESS_END__/s
-        );
-        const resultMatch = outputLog.match(/__RESULT_START__\s*([\s\S]*)$/s);
-
-        if (!successMatch || !resultMatch) {
-            throw new Error(`Failed to parse output log:\n${outputLog}`);
-        }
-
-        const success = successMatch[1] === "true";
-        const result = JSON.parse(resultMatch[1]);
-
-        if (!success) {
-            if (typeof result === "string") {
-                throw new Error(`Jest execution failed: ${result}`);
-            } else {
-                throw new Error(
-                    `Jest execution failed: ${JSON.stringify(result, null, 2)}`
-                );
-            }
-        }
-
-        return result;
-    }
-
     const actualStartTime = Date.now();
     let parsedResults;
 
-    if (jestOptions.showConfig || jestOptions.listTests) {
-        const result = await executeLuauTest(jestOptions, luauOutputPath);
-        if (jestOptions.showConfig) {
+    if (options.showConfig || options.listTests) {
+        const result = await executeLuauTest(options, luauOutputPath);
+        if (options.showConfig) {
             console.log(result.config);
         } else {
             console.log(result);
         }
-        process.exit(0);
+        return 0;
     }
 
     // Check if we should use parallel execution
-    const maxWorkers = jestOptions.maxWorkers || 1;
+    const maxWorkers = options.maxWorkers || 1;
     const useParallel = maxWorkers > 1;
 
     if (useParallel) {
         // Discover test files from filesystem
         const testSuites = discoverTestFilesFromFilesystem(
             compilerOptions,
-            jestOptions
+            options
         );
 
-        if (jestOptions.verbose) {
+        if (options.verbose) {
             console.log(`Found ${testSuites.length} test suite(s)`);
         }
 
@@ -250,10 +102,10 @@ return game:GetService("HttpService"):JSONEncode(resolved)
             };
         } else if (testSuites.length === 1) {
             // If only one test suite, no point in splitting
-            if (jestOptions.verbose) {
+            if (options.verbose) {
                 console.log("Running single test suite");
             }
-            parsedResults = await executeLuauTest(jestOptions, luauOutputPath);
+            parsedResults = await executeLuauTest(options, luauOutputPath);
         } else {
             // Split test suites across workers
             const workers = [];
@@ -275,7 +127,7 @@ return game:GetService("HttpService"):JSONEncode(resolved)
                 });
             }
 
-            if (jestOptions.verbose) {
+            if (options.verbose) {
                 console.log(`Running tests with ${workers.length} worker(s)`);
             }
 
@@ -283,7 +135,7 @@ return game:GetService("HttpService"):JSONEncode(resolved)
             const workerResults = await Promise.all(
                 workers.map(async (worker) => {
                     const workerOptions = {
-                        ...jestOptions,
+                        ...options,
                     };
 
                     // Create a testPathPattern regex that matches this worker's suites
@@ -437,36 +289,44 @@ return game:GetService("HttpService"):JSONEncode(resolved)
         }
     } else {
         // Single worker execution (original behavior)
-        parsedResults = await executeLuauTest(jestOptions, luauOutputPath);
+        parsedResults = await executeLuauTest(options, luauOutputPath);
+        if (parsedResults === undefined) return 1;
     }
 
     new ResultRewriter({ compilerOptions, rojoProject }).rewriteParsedResults(
         parsedResults.results
     );
 
-    if (jestOptions.json) {
+    if (
+        options.passWithNoTests &&
+        parsedResults.results.numTotalTests === 0
+    ) {
+        parsedResults.results.success = true;
+    }
+
+    if (options.json) {
         console.log(JSON.stringify(parsedResults.results, null, 2));
-        process.exit(parsedResults.results.success ? 0 : 1);
+        return parsedResults.results.success ? 0 : 1;
     }
 
     // Fix globalConfig - set rootDir to current working directory if null
     const globalConfig = {
         ...(parsedResults.globalConfig || {}),
-        ...jestOptions,
+        ...options,
         rootDir:
             (parsedResults.globalConfig &&
                 parsedResults.globalConfig.rootDir) ||
             process.cwd(),
         testPathPatterns: new TestPathPatterns(
-            jestOptions.testPathPattern ? [jestOptions.testPathPattern] : []
+            options.testPathPattern ? [options.testPathPattern] : []
         ),
     };
 
     const reporterConfigs = [];
 
-    if (jestOptions.reporters && jestOptions.reporters.length > 0) {
+    if (options.reporters && options.reporters.length > 0) {
         // Custom reporters specified
-        for (const reporterEntry of jestOptions.reporters) {
+        for (const reporterEntry of options.reporters) {
             // Reporter can be a string or [string, options]
             const reporterName = Array.isArray(reporterEntry)
                 ? reporterEntry[0]
@@ -569,4 +429,127 @@ return game:GetService("HttpService"):JSONEncode(resolved)
         }
     }
     return parsedResults.results.success ? 0 : 1;
+}
+
+/**
+ * Executes the Luau script to run Jest tests with the given options.
+ * @param {object} options The Jest options to pass to the Luau script.
+ * @param {string} workerOutputPath The file path to write the Luau output log.
+ * @returns {Promise<any>} The parsed results from the Luau script.
+ */
+export async function executeLuauTest(options, workerOutputPath) {
+    const luauScript = `
+local jestOptions = game:GetService("HttpService"):JSONDecode([===[${JSON.stringify(
+        options
+    )}]===])
+-- These options are handled in JS
+jestOptions.reporters = {}
+jestOptions.json = false
+
+local runCLI
+local projects = {}
+for i, v in pairs(game:GetDescendants()) do
+    if v.Name == "cli" and v.Parent.Name == "JestCore" and v:IsA("ModuleScript") then
+        local reading = require(v)
+        if reading and reading.runCLI then
+            if runCLI then
+                warn("Multiple JestCore CLI modules found;" .. v:GetFullName())
+            end
+            runCLI = reading.runCLI
+        end
+    elseif v.Name == "jest.config" and v:IsA("ModuleScript") then
+        local fullName = v:GetFullName()
+        if not fullName:find("rbxts_include") and not fullName:find("node_modules") then
+            table.insert(projects, v.Parent)
+        end
+    end
+end
+
+if not runCLI then
+    error("Could not find JestCore CLI module")
+end
+if #projects == 0 then
+    error("Could not find any jest.config modules")
+end
+
+local success, resolved = runCLI(game, jestOptions, projects):await()
+
+if jestOptions.showConfig or jestOptions.listTests then
+    return 0
+end
+
+print("__SUCCESS_START__")
+print(success)
+print("__SUCCESS_END__")
+print("__PROJECTS_START__")
+local fullNameProjects = {}
+for i, v in pairs(projects) do
+    table.insert(fullNameProjects, v:GetFullName())
+end
+print(game:GetService("HttpService"):JSONEncode(fullNameProjects))
+print("__PROJECTS_END__")
+print("__RESULT_START__")
+return game:GetService("HttpService"):JSONEncode(resolved)
+`;
+
+    let luauExitCode = 0;
+
+    if (!options.skipExecution) {
+        if (!options.place) {
+            console.error(
+                "--place option is required to run tests. No .rbxl or .rbxlx file found in current directory or nearby."
+            );
+            return;
+        }
+
+        luauExitCode = await rbxluau.executeLuau(luauScript, {
+            place: options.place,
+            silent: true,
+            exit: false,
+            out: workerOutputPath,
+        });
+    }
+    const outputLog = fs.readFileSync(workerOutputPath, "utf-8");
+
+    if (luauExitCode !== 0) {
+        throw new Error(
+            `Luau script execution failed with exit code: ${luauExitCode}\n${outputLog}`
+        );
+    }
+
+    if (options.listTests) {
+        return outputLog;
+    }
+
+    if (options.showConfig) {
+        const firstBrace = outputLog.indexOf("{");
+        const lastBrace = outputLog.lastIndexOf("}");
+        return {
+            config: JSON.parse(outputLog.slice(firstBrace, lastBrace + 1)),
+        };
+    }
+
+    const successMatch = outputLog.match(
+        /__SUCCESS_START__\s*(true|false)\s*__SUCCESS_END__/s
+    );
+    const resultMatch = outputLog.match(/__RESULT_START__\s*([\s\S]*)$/s);
+
+    if (!successMatch || !resultMatch) {
+        throw new Error(`Failed to parse output log:\n${outputLog}`);
+    }
+
+    const success = successMatch[1] === "true";
+    const result = JSON.parse(resultMatch[1].trim());
+
+    if (!success) {
+        if (typeof result === "string") {
+            throw new Error(`Jest execution failed: ${result}`);
+        } else {
+            throw new Error(
+                `Jest execution failed: ${JSON.stringify(result, null, 2)}`
+            );
+        }
+    }
+
+    return result;
 }
