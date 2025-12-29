@@ -148,8 +148,6 @@ if (process.env.JEST_TEST_NAME_PATTERN) {
     jestOptions.testNamePattern = process.env.JEST_TEST_NAME_PATTERN;
 }
 
-const placeFile = options.place;
-
 const rojoProject = discoverRojoProject(
     options.project ? path.resolve(options.project) : undefined
 );
@@ -214,8 +212,13 @@ return game:GetService("HttpService"):JSONEncode(resolved)
     let luauExitCode = 0;
 
     if (!options.skipExecution) {
+        if (!options.place) {
+            console.error("--place option is required to run tests");
+            process.exit(1);
+        }
+
         luauExitCode = await rbxluau.executeLuau(luauScript, {
-            place: placeFile,
+            place: options.place,
             silent: true,
             exit: false,
             out: workerOutputPath,

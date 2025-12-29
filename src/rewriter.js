@@ -280,12 +280,12 @@ export class ResultRewriter {
         const withExts = [".ts", ".tsx", ""]; // last entry preserves original
         for (const ext of withExts) {
             const candidate = path.join(
-                this.projectRoot,
+                this.rojoProject.root,
                 `${testFilePath}${ext}`
             );
             if (fs.existsSync(candidate)) return candidate;
         }
-        return path.join(this.projectRoot, testFilePath);
+        return path.join(this.rojoProject.root, testFilePath);
     }
 
     /**
