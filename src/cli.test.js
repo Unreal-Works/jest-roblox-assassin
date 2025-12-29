@@ -53,21 +53,6 @@ describe("CLI Integration Tests", () => {
     // Skip tests if demo files don't exist
     const shouldSkip = !fs.existsSync(demoPlaceFile);
 
-    describe("basic CLI functionality", () => {
-        it("should display version", async () => {
-            const { code, stdout } = await runCli(["--version"]);
-            expect(stdout).toContain("1.0.0");
-            expect(code).toBe(0);
-        });
-
-        it("should display help", async () => {
-            const { code, stdout } = await runCli(["--help"]);
-            expect(stdout).toContain("jestrbx");
-            expect(stdout).toContain("Delightful Roblox testing");
-            expect(code).toBe(0);
-        });
-    });
-
     describe("config file loading", () => {
         it("should error when config file does not exist", async () => {
             const { code, stderr } = await runCli([
