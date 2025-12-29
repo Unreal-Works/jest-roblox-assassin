@@ -252,8 +252,8 @@ export class ResultRewriter {
 
         let matchingPath = testFilePath
             .replace(/\.(lua|luau)$/, "")
-            .replace("\\", ".")
-            .replace("/", ".");
+            .replace(/\\/g, ".")
+            .replace(/\//g, ".");
 
         const matches = [];
         for (const [dmPath, paths] of this.modulePathMap.entries()) {
