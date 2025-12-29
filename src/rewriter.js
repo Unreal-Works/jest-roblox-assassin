@@ -324,6 +324,64 @@ export class ResultRewriter {
     }
 
     /**
+     * Converts a datamodel test path to source filesystem path.
+     * @param {string} testFilePath The datamodel test file path.
+     * @returns {string} The source file path.
+     */
+    datamodelPathToSourcePath(testFilePath) {
+        if (!testFilePath) return testFilePath;
+        
+        // First check if it's already a valid path (might happen after rewriting)
+        if (path.isAbsolute(testFilePath) && fs.existsSync(testFilePath)) {
+            return testFilePath;
+        }
+        
+        // Normalize path separators
+        const normalizedPath = testFilePath.replace(/\\/g, "/");
+        
+        // Try looking it up in the module path map
+        // Convert path separators to dots for datamodel lookup
+        const datamodelPath = normalizedPath.replace(/\//g, ".").replace(/\.(ts|tsx|lua|luau)$/, "");
+        const entry = this.modulePathMap.get(datamodelPath);
+        if (entry?.sourcePath) {
+            return entry.sourcePath;
+        }
+        
+        // Try with datamodel prefix
+        const withPrefix = [...this.datamodelPrefixSegments, datamodelPath].join(".");
+        const entryWithPrefix = this.modulePathMap.get(withPrefix);
+        if (entryWithPrefix?.sourcePath) {
+            return entryWithPrefix.sourcePath;
+        }
+        
+        // Fallback: try to find the file directly in projectRoot first
+        // The testFilePath might already include the rootDir prefix
+        const withExts = [".ts", ".tsx", ".lua", ".luau", ""];
+        
+        // Try directly in projectRoot (testFilePath may already have rootDir in it)
+        for (const ext of withExts) {
+            const candidate = path.join(
+                this.projectRoot,
+                `${testFilePath}${ext}`
+            );
+            if (fs.existsSync(candidate)) return candidate;
+        }
+        
+        // Try with rootDir prepended
+        for (const ext of withExts) {
+            const candidate = path.join(
+                this.projectRoot,
+                this.rootDir,
+                `${testFilePath}${ext}`
+            );
+            if (fs.existsSync(candidate)) return candidate;
+        }
+        
+        // Last resort: return as-is joined with projectRoot
+        return path.join(this.projectRoot, testFilePath);
+    }
+
+    /**
      * Extends a test file path by checking for common extensions.
      * @param {string} testFilePath The original test file path.
      * @returns {string} The extended test file path.
@@ -496,7 +554,7 @@ export class ResultRewriter {
     rewriteSuiteResult(suite) {
         if (!suite) return;
         suite.testFilePath = this.formatPath(
-            this.extendTestFilePath(suite.testFilePath)
+            this.datamodelPathToSourcePath(suite.testFilePath)
         );
 
         if (Array.isArray(suite.testResults)) {

@@ -140,18 +140,25 @@ if (options.reporters && options.reporters.length > 0)
 const placeFile = options.place;
 let projectFile = options.project ? path.resolve(options.project) : undefined;
 
-const workspaceRoot = placeFile
-    ? path.dirname(path.resolve(placeFile))
-    : process.cwd();
+const cwd = process.cwd();
 
-let projectRoot = workspaceRoot;
+let projectRoot = cwd;
 
 if (!projectFile) {
-    const defaultProject = path.join(projectRoot, "default.project.json");
-    if (fs.existsSync(defaultProject)) {
-        projectFile = defaultProject;
-    } else {
-        // Search up to 2 levels deep
+    // Search upwards for default.project.json
+    let current = cwd;
+    while (current !== path.parse(current).root) {
+        const p = path.join(current, "default.project.json");
+        if (fs.existsSync(p)) {
+            projectFile = p;
+            projectRoot = current;
+            break;
+        }
+        current = path.dirname(current);
+    }
+
+    if (!projectFile) {
+        // Search up to 2 levels deep from workspaceRoot
         const getSubdirs = (dir) => {
             try {
                 return fs
@@ -217,9 +224,10 @@ const rootDir = compilerOptions.rootDir || "src";
 const outDir = compilerOptions.outDir || "out";
 
 const findDatamodelPath = (tree, targetPath, currentPath = []) => {
+    if (!tree || typeof tree !== "object") return undefined;
     const normalize = (p) =>
         path
-            .normalize(p)
+            .resolve(projectRoot, p)
             .replace(/[\\\/]$/, "")
             .replace(/\\/g, "/");
     const normalizedTarget = normalize(targetPath);
@@ -230,9 +238,62 @@ const findDatamodelPath = (tree, targetPath, currentPath = []) => {
 
     for (const [key, value] of Object.entries(tree)) {
         if (key.startsWith("$")) continue;
+
+        if (typeof value === "string") {
+            if (normalize(value) === normalizedTarget) {
+                return [...currentPath, key];
+            }
+            continue;
+        }
+
         if (typeof value !== "object") continue;
 
         const found = findDatamodelPath(value, targetPath, [
+            ...currentPath,
+            key,
+        ]);
+        if (found) return found;
+    }
+    return undefined;
+};
+
+const findDatamodelPathByPrefix = (tree, targetPath, currentPath = []) => {
+    if (!tree || typeof tree !== "object") return undefined;
+    const normalize = (p) =>
+        path
+            .resolve(projectRoot, p)
+            .replace(/[\\\/]$/, "")
+            .replace(/\\/g, "/");
+    const normalizedTarget = normalize(targetPath);
+
+    // Check if this node's $path starts with targetPath (for split out directories)
+    if (tree.$path) {
+        const normalizedPath = normalize(tree.$path);
+        if (
+            normalizedPath.startsWith(normalizedTarget) ||
+            normalizedTarget.startsWith(normalizedPath)
+        ) {
+            return currentPath;
+        }
+    }
+
+    for (const [key, value] of Object.entries(tree)) {
+        if (key.startsWith("$")) continue;
+
+        if (typeof value === "string") {
+            const normalizedValue = normalize(value);
+            if (
+                normalizedValue.startsWith(normalizedTarget) ||
+                normalizedTarget.startsWith(normalizedValue)
+            ) {
+                return [...currentPath, key];
+            }
+            continue;
+        }
+
+        if (typeof value !== "object") continue;
+
+        const found = findDatamodelPathByPrefix(value, targetPath, [
             ...currentPath,
             key,
         ]);
@@ -246,10 +307,19 @@ let datamodelPrefixSegments = projectJson
     ? findDatamodelPath(projectJson.tree, outDir)
     : undefined;
 
+// If exact match not found, try prefix-based matching (for split outDir directories)
 if (!datamodelPrefixSegments || datamodelPrefixSegments.length === 0) {
-    console.warn(
-        `Could not determine datamodel prefix for outDir "${outDir}".`
-    );
+    datamodelPrefixSegments = projectJson
+        ? findDatamodelPathByPrefix(projectJson.tree, outDir)
+        : undefined;
+}
+
+if (!datamodelPrefixSegments || datamodelPrefixSegments.length === 0) {
+    if (projectJson) {
+        console.warn(
+            `Could not determine datamodel prefix for outDir "${outDir}". Using fallback.`
+        );
+    }
     datamodelPrefixSegments = ["ReplicatedStorage", ...rootDir.split(path.sep)];
 }
 
@@ -282,7 +352,10 @@ for i, v in pairs(game:GetDescendants()) do
             runCLI = reading.runCLI
         end
     elseif v.Name == "jest.config" and v:IsA("ModuleScript") then
-        table.insert(projects, v.Parent)
+        local fullName = v:GetFullName()
+        if not fullName:find("rbxts_include") and not fullName:find("node_modules") then
+            table.insert(projects, v.Parent)
+        end
     end
 end
 
@@ -303,9 +376,7 @@ print("__SUCCESS_START__")
 print(success)
 print("__SUCCESS_END__")
 print("__RESULT_START__")
-print(game:GetService("HttpService"):JSONEncode(resolved))
-print("__RESULT_END__")
-return 0
+return game:GetService("HttpService"):JSONEncode(resolved)
 `;
 
     const luauExitCode = await rbxluau.executeLuau(luauScript, {
@@ -334,14 +405,27 @@ return 0
         /__SUCCESS_START__\s*(true|false)\s*__SUCCESS_END__/s
     );
     const resultMatch = outputLog.match(
-        /__RESULT_START__\s*([\s\S]*?)\s*__RESULT_END__/s
+        /__RESULT_START__\s*([\s\S]*)$/s
     );
 
     if (!successMatch || !resultMatch) {
         throw new Error(`Failed to parse output log:\n${outputLog}`);
     }
 
-    return JSON.parse(resultMatch[1]);
+    const success = successMatch[1] === "true";
+    const result = JSON.parse(resultMatch[1]);
+
+    if (!success) {
+        if (typeof result === "string") {
+            throw new Error(`Jest execution failed: ${result}`);
+        } else {
+            throw new Error(
+                `Jest execution failed: ${JSON.stringify(result, null, 2)}`
+            );
+        }
+    }
+
+    return result;
 }
 
 // Helper function to discover test files from filesystem
@@ -524,7 +608,7 @@ if (useParallel) {
         console.warn("No test suites found");
         parsedResults = {
             globalConfig: {
-                rootDir: workspaceRoot,
+                rootDir: cwd,
             },
             results: {
                 numPassedTests: 0,
@@ -687,7 +771,7 @@ if (useParallel) {
         }
 
         parsedResults = {
-            globalConfig: globalConfig || { rootDir: workspaceRoot },
+            globalConfig: globalConfig || { rootDir: cwd },
             results: {
                 numPassedTests,
                 numFailedTests,
@@ -714,7 +798,7 @@ if (useParallel) {
 }
 
 new ResultRewriter({
-    workspaceRoot,
+    workspaceRoot: cwd,
     projectRoot,
     rootDir,
     outDir,
@@ -723,9 +807,11 @@ new ResultRewriter({
 
 // Fix globalConfig - set rootDir to current working directory if null
 const globalConfig = {
-    ...parsedResults.globalConfig,
+    ...(parsedResults.globalConfig || {}),
     ...jestOptions,
-    rootDir: parsedResults.globalConfig.rootDir || workspaceRoot,
+    rootDir:
+        (parsedResults.globalConfig && parsedResults.globalConfig.rootDir) ||
+        cwd,
     testPathPatterns,
 };
 
