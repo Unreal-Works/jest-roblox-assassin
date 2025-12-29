@@ -3,30 +3,9 @@ import fs from "fs";
 import path from "path";
 
 export class ResultRewriter {
-    INTERNAL_FRAME_PATTERNS = [
-        /rbxts_include\.node_modules/i,
-        /@rbxts-js\.Promise/i,
-        /@rbxts-js\.JestCircus/i,
-    ];
-
-    constructor({
-        workspaceRoot,
-        projectRoot,
-        rootDir,
-        outDir,
-        datamodelPrefixSegments,
-    }) {
-        this.workspaceRoot = workspaceRoot || projectRoot;
-        this.projectRoot = projectRoot;
-        this.rootDir = rootDir;
-        this.outDir = outDir;
-        this.datamodelPrefixSegments = datamodelPrefixSegments;
-
-        const firstSegment = this.datamodelPrefixSegments[0];
-        this.stackFramePattern = new RegExp(
-            `(?:\\[string\\s+")?(${firstSegment}[^\\]":\\n]+)(?:"\\])?:([0-9]+)`,
-            "g"
-        );
+    constructor({ rojoProject, compilerOptions }) {
+        this.rojoProject = rojoProject;
+        this.compilerOptions = compilerOptions;
 
         /**
          * A map from datamodel paths to their corresponding Luau and source file paths.
@@ -34,54 +13,67 @@ export class ResultRewriter {
          */
         this.modulePathMap = (() => {
             const map = new Map();
-            const outRoot = path.join(this.projectRoot, this.outDir);
-            if (!fs.existsSync(outRoot)) return map;
+            const sourcemap = rojoProject.sourcemap;
+            if (!sourcemap) return map;
 
-            function visit(folder) {
-                for (const entry of fs.readdirSync(folder, {
-                    withFileTypes: true,
-                })) {
-                    const abs = path.join(folder, entry.name);
-                    if (entry.isDirectory()) {
-                        visit(abs);
-                        continue;
-                    }
-                    if (!entry.name.endsWith(".luau")) continue;
+            const searchChildren = (node, parents) => {
+                for (const child of node.children) {
+                    // Recurse into children
+                    searchChildren(child, [...parents, child.name]);
 
-                    const rel = path.relative(outRoot, abs);
-                    const withoutExt = rel.slice(0, -".luau".length);
-                    const datamodelPath = [
-                        ...datamodelPrefixSegments,
-                        ...withoutExt.split(path.sep),
-                    ].join(".");
+                    // Process current child
+                    const datamodelPath = [...parents, child.name].join(".");
+                    const luauPath = child.filePaths[0];
+                    if (!luauPath) continue;
 
-                    const candidateBases = [
-                        withoutExt + ".ts",
-                        withoutExt + ".tsx",
-                        withoutExt + ".lua",
-                        withoutExt + ".luau",
-                    ];
                     let sourcePath;
-                    for (const candidate of candidateBases) {
-                        const candidatePath = path.join(
-                            projectRoot,
-                            rootDir,
-                            candidate
+
+                    // If in outDir, map back to source using compiler options
+                    if (
+                        compilerOptions &&
+                        luauPath.startsWith(compilerOptions.outDir)
+                    ) {
+                        const relativePath = path.relative(
+                            compilerOptions.outDir,
+                            luauPath
                         );
-                        if (fs.existsSync(candidatePath)) {
-                            sourcePath = candidatePath;
-                            break;
+                        sourcePath = path.join(
+                            compilerOptions.rootDir,
+                            relativePath
+                        );
+                        // if called init, adjust to index
+                        // TODO
+
+                        // check if sourcePath exists
+                        if (!fs.existsSync(sourcePath)) {
+                            // if not, try changing extension to .ts or .tsx
+                            const withTs = sourcePath.replace(
+                                /\.(lua|luau)$/,
+                                ".ts"
+                            );
+                            const withTsx = sourcePath.replace(
+                                /\.(lua|luau)$/,
+                                ".tsx"
+                            );
+                            if (fs.existsSync(withTs)) {
+                                sourcePath = withTs;
+                            } else if (fs.existsSync(withTsx)) {
+                                sourcePath = withTsx;
+                            }
+
+                            // if still not, set to undefined
+                            if (!fs.existsSync(sourcePath)) {
+                                sourcePath = undefined;
+                            }
                         }
                     }
 
-                    map.set(datamodelPath, {
-                        luauPath: abs,
-                        sourcePath,
-                    });
+                    map.set(datamodelPath, { luauPath, sourcePath });
                 }
-            }
+            };
 
-            visit(outRoot);
+            searchChildren(sourcemap, []);
+
             return map;
         })();
     }
@@ -131,13 +123,13 @@ export class ResultRewriter {
     }
 
     /**
-     * Formats a file path relative to the project root with forward slashes.
+     * Formats a file path ready to be displayed to the terminal by making it relative and using forward slashes.
      * @param {string} filePath The file path to format.
      * @returns {string} The formatted path.
      */
     formatPath(filePath) {
         return path
-            .relative(this.workspaceRoot, filePath)
+            .relative(process.cwd(), filePath)
             .split(path.sep)
             .join("/")
             .replace(/\\/g, "/");
@@ -159,24 +151,8 @@ export class ResultRewriter {
         );
         const displayPath = entry.sourcePath
             ? this.formatPath(entry.sourcePath)
-            : datamodelPath;
+            : entry.luauPath;
         return `${displayPath}:${mappedLine}`;
-    }
-
-    /**
-     * Cleans internal stack trace lines from a text block.
-     * @param {string} text The text block to clean.
-     * @returns {string} The cleaned text block.
-     */
-    cleanInternalLines(text) {
-        if (!text) return text;
-        const lines = text.split(/\r?\n/);
-        const kept = lines.filter(
-            (line) =>
-                !this.INTERNAL_FRAME_PATTERNS.some((pat) => pat.test(line))
-        );
-        const squashed = kept.join("\n").replace(/\n{3,}/g, "\n\n");
-        return squashed.trimEnd();
     }
 
     /**
@@ -235,150 +211,63 @@ export class ResultRewriter {
      * @returns {string} The rewritten stack string.
      */
     rewriteStackString(value) {
-        return typeof value === "string"
-            ? this.cleanInternalLines(
-                  value.replace(
-                      this.stackFramePattern,
-                      (match, dmPath, line) => {
-                          const mapped = this.mapDatamodelFrame(
-                              dmPath,
-                              Number(line)
-                          );
-                          return mapped || match;
-                      }
-                  )
-              )
-            : value;
+        if (!value) return value;
+
+        // Try to find matches in modulePathMap
+        const pattern =
+            /((?:[\w@.\/\\-]*[\/\.\\][\w@.\/\\-]+)):(\d+)(?::(\d+))?/g;
+        let match;
+        let rewritten = value;
+        const processed = new Set();
+        while ((match = pattern.exec(value)) !== null) {
+            const [fullMatch, filePart, lineStr] = match;
+            const lineNumber = Number(lineStr);
+            if (processed.has(fullMatch)) continue;
+            processed.add(fullMatch);
+            const mapped = this.mapDatamodelFrame(filePart, lineNumber);
+            if (mapped) {
+                rewritten = rewritten.split(fullMatch).join(mapped);
+            }
+        }
+
+        return rewritten;
     }
 
     /**
-     * Rewrites a test case's failure messages and details.
-     * @param {object} testCase The test case to rewrite.
-     */
-    rewriteTestCase(testCase) {
-        if (Array.isArray(testCase.failureMessages)) {
-            const rewritten = testCase.failureMessages.map(
-                this.rewriteStackString.bind(this)
-            );
-            let candidateFrame;
-
-            // Search all failure messages for a valid file frame
-            for (const msg of rewritten) {
-                const frame = this.parseFrame(msg);
-                if (frame) {
-                    candidateFrame = frame;
-                    break;
-                }
-            }
-
-            // Fallback to failureDetails if no frame found in messages
-            if (!candidateFrame && Array.isArray(testCase.failureDetails)) {
-                for (const detail of testCase.failureDetails) {
-                    const stack =
-                        this.rewriteStackString(detail.stack) ||
-                        this.rewriteStackString(detail.__stack) ||
-                        this.rewriteStackString(detail.message);
-                    const frame = this.parseFrame(stack);
-                    if (frame) {
-                        candidateFrame = frame;
-                        break;
-                    }
-                }
-            }
-
-            const codeFrame = candidateFrame
-                ? this.buildCodeFrame(
-                      candidateFrame.absPath,
-                      candidateFrame.line,
-                      candidateFrame.column
-                  )
-                : undefined;
-
-            // Only append the code frame to the first message to avoid duplication
-            if (codeFrame && rewritten.length > 0) {
-                rewritten[0] = this.injectCodeFrame(
-                    rewritten[0],
-                    candidateFrame,
-                    codeFrame
-                );
-            }
-
-            testCase.failureMessages = rewritten.map(
-                this.formatFailureMessage.bind(this)
-            );
-        }
-        if (Array.isArray(testCase.failureDetails)) {
-            testCase.failureDetails = testCase.failureDetails.map((detail) => ({
-                ...detail,
-                stack: this.formatFailureMessage(
-                    this.rewriteStackString(detail.stack)
-                ),
-                __stack: this.formatFailureMessage(
-                    this.rewriteStackString(detail.__stack)
-                ),
-                message: this.formatFailureMessage(
-                    this.rewriteStackString(detail.message)
-                ),
-            }));
-        }
-    }
-
-    /**
-     * Converts a datamodel test path to source filesystem path.
-     * @param {string} testFilePath The datamodel test file path.
+     * Converts a testFilePath from the Jest datamodel format to the source file path.
+     * A testFilePath looks like: `parent/testName.spec`, where ancestors after parent are sliced off.
+     * Hence, only infering from the modulePathMap is possible. If conflicts arise, no match is made and the original path is returned.
+     *
+     * @param {string} testFilePath The raw testFilePath from runner results.
      * @returns {string} The source file path.
      */
     datamodelPathToSourcePath(testFilePath) {
         if (!testFilePath) return testFilePath;
-        
-        // First check if it's already a valid path (might happen after rewriting)
-        if (path.isAbsolute(testFilePath) && fs.existsSync(testFilePath)) {
-            return testFilePath;
-        }
-        
-        // Normalize path separators
-        const normalizedPath = testFilePath.replace(/\\/g, "/");
-        
-        // Try looking it up in the module path map
-        // Convert path separators to dots for datamodel lookup
-        const datamodelPath = normalizedPath.replace(/\//g, ".").replace(/\.(ts|tsx|lua|luau)$/, "");
-        const entry = this.modulePathMap.get(datamodelPath);
+
+        // Attempt direct lookup first
+        const entry = this.modulePathMap.get(testFilePath);
         if (entry?.sourcePath) {
             return entry.sourcePath;
         }
-        
-        // Try with datamodel prefix
-        const withPrefix = [...this.datamodelPrefixSegments, datamodelPath].join(".");
-        const entryWithPrefix = this.modulePathMap.get(withPrefix);
-        if (entryWithPrefix?.sourcePath) {
-            return entryWithPrefix.sourcePath;
+
+        let matchingPath = testFilePath
+            .replace(/\.(lua|luau)$/, "")
+            .replace("\\", ".")
+            .replace("/", ".");
+
+        const matches = [];
+        for (const [dmPath, paths] of this.modulePathMap.entries()) {
+            if (dmPath.endsWith(matchingPath)) {
+                matches.push(paths.sourcePath ?? paths.luauPath);
+            }
         }
-        
-        // Fallback: try to find the file directly in projectRoot first
-        // The testFilePath might already include the rootDir prefix
-        const withExts = [".ts", ".tsx", ".lua", ".luau", ""];
-        
-        // Try directly in projectRoot (testFilePath may already have rootDir in it)
-        for (const ext of withExts) {
-            const candidate = path.join(
-                this.projectRoot,
-                `${testFilePath}${ext}`
-            );
-            if (fs.existsSync(candidate)) return candidate;
+
+        if (matches.length === 1) {
+            return matches[0];
         }
-        
-        // Try with rootDir prepended
-        for (const ext of withExts) {
-            const candidate = path.join(
-                this.projectRoot,
-                this.rootDir,
-                `${testFilePath}${ext}`
-            );
-            if (fs.existsSync(candidate)) return candidate;
-        }
-        
+
         // Last resort: return as-is joined with projectRoot
-        return path.join(this.projectRoot, testFilePath);
+        return path.join(this.rojoProject.root, testFilePath);
     }
 
     /**
@@ -428,7 +317,7 @@ export class ResultRewriter {
             const [, filePart, lineStr, colStr] = match;
             const absPath = path.isAbsolute(filePart)
                 ? filePart
-                : path.join(this.workspaceRoot, filePart);
+                : path.join(this.rojoProject.root, filePart);
             if (fs.existsSync(absPath)) {
                 candidates.push({
                     absPath,
@@ -444,10 +333,7 @@ export class ResultRewriter {
         }
 
         if (candidates.length === 0) return undefined;
-        // Sort by score descending, then by line number (prefer higher line numbers which are usually the actual error)
-        return candidates.sort(
-            (a, b) => b.score - a.score || b.line - a.line
-        )[0];
+        return candidates[0];
     }
 
     /**
@@ -511,7 +397,7 @@ export class ResultRewriter {
     }
 
     /**
-     * Injects a code frame into a text block, moving the corresponding stack frame line to the bottom.
+     * Injects a code frame into a text block, moving all stack trace lines to below the code frame.
      * @param {string} text The text block.
      * @param {object} frame The parsed frame info.
      * @param {string} codeFrame The code frame text.
@@ -521,30 +407,22 @@ export class ResultRewriter {
         if (!codeFrame || !frame) return text;
 
         const lines = text.split(/\r?\n/);
-        let frameLine = "";
-        let frameLineIndex = -1;
+        const stackLines = [];
+        const nonStackLines = [];
+        const pattern =
+            /(?:^|\s|")((?:[a-zA-Z]:[\\\/][^:\s\n"]+|[\w@.\/\\-]+\.[a-z0-9]+)):(\d+)(?::(\d+))?/gi;
 
-        const displayPath = this.formatPath(frame.absPath);
-        const searchPath1 = `${displayPath}:${frame.line}`;
-        const searchPath2 = `${frame.absPath}:${frame.line}`;
-
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            if (line.includes(searchPath1) || line.includes(searchPath2)) {
-                frameLine = line;
-                frameLineIndex = i;
-                break;
+        for (const line of lines) {
+            pattern.lastIndex = 0; // Reset regex state
+            if (pattern.test(line)) {
+                stackLines.push(line);
+            } else {
+                nonStackLines.push(line);
             }
         }
 
-        if (frameLineIndex !== -1) {
-            lines.splice(frameLineIndex, 1);
-            return `${lines
-                .join("\n")
-                .trimEnd()}\n\n${codeFrame}\n\n${frameLine}`;
-        }
-
-        return `${text.trimEnd()}\n\n${codeFrame}`;
+        const mainText = nonStackLines.join("\n");
+        return `${mainText}\n\n${codeFrame}\n\n${stackLines.join("\n")}`;
     }
 
     /**
@@ -557,50 +435,34 @@ export class ResultRewriter {
             this.datamodelPathToSourcePath(suite.testFilePath)
         );
 
-        if (Array.isArray(suite.testResults)) {
-            suite.testResults.forEach((value) => {
-                this.rewriteTestCase(value);
-            });
-        }
-
         if (suite.failureMessage) {
             let rewritten = this.rewriteStackString(suite.failureMessage);
 
             // Split by the test header "  ● " to handle multiple failures in one string
             const sections = rewritten.split(/(\s+●\s+)/);
+
+            const rewriteSection = (sectionContent) => {
+                const frame = this.parseFrame(sectionContent);
+                if (!frame) return sectionContent;
+
+                const codeFrame = this.buildCodeFrame(
+                    frame.absPath,
+                    frame.line,
+                    frame.column
+                );
+                return (
+                    this.injectCodeFrame(sectionContent, frame, codeFrame) +
+                    "\n"
+                );
+            };
+
             if (sections.length > 1) {
                 for (let i = 2; i < sections.length; i += 2) {
-                    const sectionContent = sections[i];
-                    const frame = this.parseFrame(sectionContent);
-                    if (frame) {
-                        const codeFrame = this.buildCodeFrame(
-                            frame.absPath,
-                            frame.line,
-                            frame.column
-                        );
-                        sections[i] =
-                            this.injectCodeFrame(
-                                sectionContent,
-                                frame,
-                                codeFrame
-                            ) + "\n";
-                    }
+                    sections[i] = rewriteSection(sections[i]);
                 }
                 rewritten = sections.join("");
             } else {
-                const frame = this.parseFrame(rewritten);
-                if (frame) {
-                    const codeFrame = this.buildCodeFrame(
-                        frame.absPath,
-                        frame.line,
-                        frame.column
-                    );
-                    rewritten = this.injectCodeFrame(
-                        rewritten,
-                        frame,
-                        codeFrame
-                    ) + "\n";
-                }
+                rewritten = rewriteSection(rewritten);
             }
 
             suite.failureMessage = this.formatFailureMessage(rewritten);

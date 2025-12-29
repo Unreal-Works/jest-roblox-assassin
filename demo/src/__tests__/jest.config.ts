@@ -1,6 +1,7 @@
 import { Config } from "@rbxts/jest";
+import setupTestsModule from "shared/setupTests";
 
 export = {
     testMatch: ["**/*.spec"],
-    setupFiles: [script.Parent!.WaitForChild("setup") as ModuleScript],
+    setupFiles: [setupTestsModule],
 } satisfies Config;

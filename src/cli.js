@@ -9,6 +9,11 @@ import path from "path";
 import * as rbxluau from "rbxluau";
 import { pathToFileURL } from "url";
 import { ensureCache } from "./cache.js";
+import {
+    discoverCompilerOptions,
+    discoverRojoProject,
+    discoverTestFilesFromFilesystem,
+} from "./discovery.js";
 import { getCliOptions } from "./docs.js";
 import { ResultRewriter } from "./rewriter.js";
 
@@ -34,7 +39,8 @@ program
     .option(
         "--maxWorkers <number>",
         "maximum number of parallel workers to use"
-    );
+    )
+    .option("--skipExecution", "skip executing tests (internal use only)");
 
 // Add options from fetched documentation
 function collect(value, previous) {
@@ -137,200 +143,17 @@ if (
 if (options.reporters && options.reporters.length > 0)
     jestOptions.reporters = options.reporters;
 
-const placeFile = options.place;
-let projectFile = options.project ? path.resolve(options.project) : undefined;
-
-const cwd = process.cwd();
-
-let projectRoot = cwd;
-
-if (!projectFile) {
-    // Search upwards for default.project.json
-    let current = cwd;
-    while (current !== path.parse(current).root) {
-        const p = path.join(current, "default.project.json");
-        if (fs.existsSync(p)) {
-            projectFile = p;
-            projectRoot = current;
-            break;
-        }
-        current = path.dirname(current);
-    }
-
-    if (!projectFile) {
-        // Search up to 2 levels deep from workspaceRoot
-        const getSubdirs = (dir) => {
-            try {
-                return fs
-                    .readdirSync(dir, { withFileTypes: true })
-                    .filter(
-                        (dirent) =>
-                            dirent.isDirectory() &&
-                            !dirent.name.startsWith(".") &&
-                            dirent.name !== "node_modules"
-                    )
-                    .map((dirent) => path.join(dir, dirent.name));
-            } catch {
-                return [];
-            }
-        };
-
-        const level1 = getSubdirs(projectRoot);
-        for (const dir of level1) {
-            const p = path.join(dir, "default.project.json");
-            if (fs.existsSync(p)) {
-                projectFile = p;
-                projectRoot = dir;
-                break;
-            }
-        }
-
-        if (!projectFile) {
-            for (const dir of level1) {
-                const level2 = getSubdirs(dir);
-                for (const dir2 of level2) {
-                    const p = path.join(dir2, "default.project.json");
-                    if (fs.existsSync(p)) {
-                        projectFile = p;
-                        projectRoot = dir2;
-                        break;
-                    }
-                }
-                if (projectFile) break;
-            }
-        }
-    }
-}
-
-const tsConfigPath = path.join(projectRoot, "tsconfig.json");
-
-const stripJsonComments = (text) =>
-    text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-
-const readJsonWithComments = (jsonPath) => {
-    if (!fs.existsSync(jsonPath)) return undefined;
-    const raw = fs.readFileSync(jsonPath, "utf-8");
-    try {
-        return JSON.parse(stripJsonComments(raw));
-    } catch (error) {
-        return undefined;
-    }
-};
-
-const compilerOptions =
-    readJsonWithComments(tsConfigPath)?.compilerOptions || {};
-
-const rootDir = compilerOptions.rootDir || "src";
-const outDir = compilerOptions.outDir || "out";
-
-const findDatamodelPath = (tree, targetPath, currentPath = []) => {
-    if (!tree || typeof tree !== "object") return undefined;
-    const normalize = (p) =>
-        path
-            .resolve(projectRoot, p)
-            .replace(/[\\\/]$/, "")
-            .replace(/\\/g, "/");
-    const normalizedTarget = normalize(targetPath);
-
-    if (tree.$path && normalize(tree.$path) === normalizedTarget) {
-        return currentPath;
-    }
-
-    for (const [key, value] of Object.entries(tree)) {
-        if (key.startsWith("$")) continue;
-
-        if (typeof value === "string") {
-            if (normalize(value) === normalizedTarget) {
-                return [...currentPath, key];
-            }
-            continue;
-        }
-
-        if (typeof value !== "object") continue;
-
-        const found = findDatamodelPath(value, targetPath, [
-            ...currentPath,
-            key,
-        ]);
-        if (found) return found;
-    }
-    return undefined;
-};
-
-const findDatamodelPathByPrefix = (tree, targetPath, currentPath = []) => {
-    if (!tree || typeof tree !== "object") return undefined;
-    const normalize = (p) =>
-        path
-            .resolve(projectRoot, p)
-            .replace(/[\\\/]$/, "")
-            .replace(/\\/g, "/");
-    const normalizedTarget = normalize(targetPath);
-
-    // Check if this node's $path starts with targetPath (for split out directories)
-    if (tree.$path) {
-        const normalizedPath = normalize(tree.$path);
-        if (
-            normalizedPath.startsWith(normalizedTarget) ||
-            normalizedTarget.startsWith(normalizedPath)
-        ) {
-            return currentPath;
-        }
-    }
-
-    for (const [key, value] of Object.entries(tree)) {
-        if (key.startsWith("$")) continue;
-
-        if (typeof value === "string") {
-            const normalizedValue = normalize(value);
-            if (
-                normalizedValue.startsWith(normalizedTarget) ||
-                normalizedTarget.startsWith(normalizedValue)
-            ) {
-                return [...currentPath, key];
-            }
-            continue;
-        }
-
-        if (typeof value !== "object") continue;
-
-        const found = findDatamodelPathByPrefix(value, targetPath, [
-            ...currentPath,
-            key,
-        ]);
-        if (found) return found;
-    }
-    return undefined;
-};
-
-const projectJson = projectFile ? readJsonWithComments(projectFile) : undefined;
-let datamodelPrefixSegments = projectJson
-    ? findDatamodelPath(projectJson.tree, outDir)
-    : undefined;
-
-// If exact match not found, try prefix-based matching (for split outDir directories)
-if (!datamodelPrefixSegments || datamodelPrefixSegments.length === 0) {
-    datamodelPrefixSegments = projectJson
-        ? findDatamodelPathByPrefix(projectJson.tree, outDir)
-        : undefined;
-}
-
-if (!datamodelPrefixSegments || datamodelPrefixSegments.length === 0) {
-    if (projectJson) {
-        console.warn(
-            `Could not determine datamodel prefix for outDir "${outDir}". Using fallback.`
-        );
-    }
-    datamodelPrefixSegments = ["ReplicatedStorage", ...rootDir.split(path.sep)];
-}
-
 // Get test filter from environment variable (set by VS Code extension)
 if (process.env.JEST_TEST_NAME_PATTERN) {
     jestOptions.testNamePattern = process.env.JEST_TEST_NAME_PATTERN;
 }
 
-const testPathPatterns = new TestPathPatterns(
-    jestOptions.testPathPattern ? [jestOptions.testPathPattern] : []
+const placeFile = options.place;
+
+const rojoProject = discoverRojoProject(
+    options.project ? path.resolve(options.project) : undefined
 );
+const compilerOptions = discoverCompilerOptions();
 
 // Helper function to execute Luau and parse results
 async function executeLuauTest(testOptions, workerOutputPath) {
@@ -338,7 +161,9 @@ async function executeLuauTest(testOptions, workerOutputPath) {
 local jestOptions = game:GetService("HttpService"):JSONDecode([===[${JSON.stringify(
         testOptions
     )}]===])
-jestOptions.reporters = {} -- Redundant reporters, handled in JS
+-- These options are handled in JS
+jestOptions.reporters = {}
+jestOptions.json = false
 
 local runCLI
 local projects = {}
@@ -368,29 +193,44 @@ end
 
 local success, resolved = runCLI(game, jestOptions, projects):await()
 
-if jestOptions.showConfig then
+if jestOptions.showConfig or jestOptions.listTests then
     return 0
 end
 
 print("__SUCCESS_START__")
 print(success)
 print("__SUCCESS_END__")
+print("__PROJECTS_START__")
+local fullNameProjects = {}
+for i, v in pairs(projects) do
+    table.insert(fullNameProjects, v:GetFullName())
+end
+print(game:GetService("HttpService"):JSONEncode(fullNameProjects))
+print("__PROJECTS_END__")
 print("__RESULT_START__")
 return game:GetService("HttpService"):JSONEncode(resolved)
 `;
 
-    const luauExitCode = await rbxluau.executeLuau(luauScript, {
-        place: placeFile,
-        silent: true,
-        exit: false,
-        out: workerOutputPath,
-    });
+    let luauExitCode = 0;
+
+    if (!options.skipExecution) {
+        luauExitCode = await rbxluau.executeLuau(luauScript, {
+            place: placeFile,
+            silent: true,
+            exit: false,
+            out: workerOutputPath,
+        });
+    }
     const outputLog = fs.readFileSync(workerOutputPath, "utf-8");
 
     if (luauExitCode !== 0) {
         throw new Error(
             `Luau script execution failed with exit code: ${luauExitCode}\n${outputLog}`
         );
+    }
+
+    if (testOptions.listTests) {
+        return outputLog;
     }
 
     if (testOptions.showConfig) {
@@ -404,9 +244,7 @@ return game:GetService("HttpService"):JSONEncode(resolved)
     const successMatch = outputLog.match(
         /__SUCCESS_START__\s*(true|false)\s*__SUCCESS_END__/s
     );
-    const resultMatch = outputLog.match(
-        /__RESULT_START__\s*([\s\S]*)$/s
-    );
+    const resultMatch = outputLog.match(/__RESULT_START__\s*([\s\S]*)$/s);
 
     if (!successMatch || !resultMatch) {
         throw new Error(`Failed to parse output log:\n${outputLog}`);
@@ -428,167 +266,16 @@ return game:GetService("HttpService"):JSONEncode(resolved)
     return result;
 }
 
-// Helper function to discover test files from filesystem
-function discoverTestFilesFromFilesystem() {
-    const outDirPath = path.join(projectRoot, outDir);
-
-    if (!fs.existsSync(outDirPath)) {
-        if (jestOptions.verbose) {
-            console.log(`Output directory not found: ${outDirPath}`);
-        }
-        return [];
-    }
-
-    // Default test patterns if none specified
-    const defaultTestMatch = [
-        "**/__tests__/**/*.[jt]s?(x)",
-        "**/?(*.)+(spec|test).[jt]s?(x)",
-    ];
-
-    const testMatchPatterns =
-        jestOptions.testMatch && jestOptions.testMatch.length > 0
-            ? jestOptions.testMatch
-            : defaultTestMatch;
-
-    // Convert glob patterns to work with .luau files in outDir
-    const luauPatterns = testMatchPatterns.map((pattern) => {
-        // Replace js/ts extensions with luau
-        return pattern
-            .replace(/\.\[jt\]s\?\(x\)/g, ".luau")
-            .replace(/\.\[jt\]sx?/g, ".luau")
-            .replace(/\.tsx?/g, ".luau")
-            .replace(/\.jsx?/g, ".luau")
-            .replace(/\.ts/g, ".luau")
-            .replace(/\.js/g, ".luau");
-    });
-
-    // Add patterns for native .luau test files
-    if (
-        !luauPatterns.some(
-            (p) => p.includes(".spec.luau") || p.includes(".test.luau")
-        )
-    ) {
-        luauPatterns.push("**/__tests__/**/*.spec.luau");
-        luauPatterns.push("**/__tests__/**/*.test.luau");
-        luauPatterns.push("**/*.spec.luau");
-        luauPatterns.push("**/*.test.luau");
-    }
-
-    const testFiles = [];
-
-    // Simple recursive file finder with glob-like pattern matching
-    function findFiles(dir, baseDir) {
-        try {
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-            for (const entry of entries) {
-                const fullPath = path.join(dir, entry.name);
-                const relativePath = path
-                    .relative(baseDir, fullPath)
-                    .replace(/\\/g, "/");
-
-                if (entry.isDirectory()) {
-                    // Skip node_modules and hidden directories
-                    if (
-                        !entry.name.startsWith(".") &&
-                        entry.name !== "node_modules"
-                    ) {
-                        findFiles(fullPath, baseDir);
-                    }
-                } else if (entry.isFile() && entry.name.endsWith(".luau")) {
-                    // Check if file matches any test pattern
-                    const isTestFile = luauPatterns.some((pattern) => {
-                        return matchGlobPattern(relativePath, pattern);
-                    });
-
-                    if (isTestFile) {
-                        testFiles.push(relativePath);
-                    }
-                }
-            }
-        } catch (error) {
-            // Ignore errors reading directories
-        }
-    }
-
-    // Simple glob pattern matcher
-    function matchGlobPattern(filePath, pattern) {
-        // Handle common glob patterns
-        let regexPattern = pattern
-            .replace(/\./g, "\\.")
-            .replace(/\*\*/g, "{{GLOBSTAR}}")
-            .replace(/\*/g, "[^/]*")
-            .replace(/{{GLOBSTAR}}/g, ".*")
-            .replace(/\?/g, ".");
-
-        // Handle optional groups like ?(x)
-        regexPattern = regexPattern.replace(/\\\?\(([^)]+)\)/g, "($1)?");
-
-        // Handle pattern groups like +(spec|test)
-        regexPattern = regexPattern.replace(/\+\(([^)]+)\)/g, "($1)+");
-
-        try {
-            const regex = new RegExp(`^${regexPattern}$`, "i");
-            return regex.test(filePath);
-        } catch {
-            // If pattern is invalid, fall back to simple check
-            return filePath.includes(".spec.") || filePath.includes(".test.");
-        }
-    }
-
-    findFiles(outDirPath, outDirPath);
-
-    // Apply testPathIgnorePatterns if specified
-    let filteredFiles = testFiles;
-    if (
-        jestOptions.testPathIgnorePatterns &&
-        jestOptions.testPathIgnorePatterns.length > 0
-    ) {
-        filteredFiles = testFiles.filter((file) => {
-            return !jestOptions.testPathIgnorePatterns.some((pattern) => {
-                try {
-                    const regex = new RegExp(pattern);
-                    return regex.test(file);
-                } catch {
-                    return file.includes(pattern);
-                }
-            });
-        });
-    }
-
-    // Apply testPathPattern filter if specified
-    if (jestOptions.testPathPattern) {
-        const pathPatternRegex = new RegExp(jestOptions.testPathPattern, "i");
-        filteredFiles = filteredFiles.filter((file) =>
-            pathPatternRegex.test(file)
-        );
-    }
-
-    // Convert to roblox-jest path format (e.g., "src/__tests__/add.spec")
-    // These paths are relative to projectRoot, use forward slashes, and have no extension
-    const jestPaths = filteredFiles.map((file) => {
-        // Remove .luau extension
-        const withoutExt = file.replace(/\.luau$/, "");
-        // Normalize to forward slashes
-        const normalizedPath = withoutExt.replace(/\\/g, "/");
-        // Prepend the rootDir (since outDir maps to rootDir in the place)
-        return `${rootDir}/${normalizedPath}`;
-    });
-
-    if (jestOptions.verbose) {
-        console.log(
-            `Discovered ${jestPaths.length} test file(s) from filesystem`
-        );
-    }
-
-    return jestPaths;
-}
-
 const actualStartTime = Date.now();
 let parsedResults;
 
-if (jestOptions.showConfig) {
+if (jestOptions.showConfig || jestOptions.listTests) {
     const result = await executeLuauTest(jestOptions, luauOutputPath);
-    console.log(result.config);
+    if (jestOptions.showConfig) {
+        console.log(result.config);
+    } else {
+        console.log(result);
+    }
     process.exit(0);
 }
 
@@ -597,8 +284,11 @@ const maxWorkers = jestOptions.maxWorkers || 1;
 const useParallel = maxWorkers > 1;
 
 if (useParallel) {
-    // Discover test files from filesystem (fast, no caching needed)
-    const testSuites = discoverTestFilesFromFilesystem();
+    // Discover test files from filesystem
+    const testSuites = discoverTestFilesFromFilesystem(
+        compilerOptions,
+        jestOptions
+    );
 
     if (jestOptions.verbose) {
         console.log(`Found ${testSuites.length} test suite(s)`);
@@ -797,13 +487,14 @@ if (useParallel) {
     parsedResults = await executeLuauTest(jestOptions, luauOutputPath);
 }
 
-new ResultRewriter({
-    workspaceRoot: cwd,
-    projectRoot,
-    rootDir,
-    outDir,
-    datamodelPrefixSegments,
-}).rewriteParsedResults(parsedResults.results);
+new ResultRewriter({ compilerOptions, rojoProject }).rewriteParsedResults(
+    parsedResults.results
+);
+
+if (jestOptions.json) {
+    console.log(JSON.stringify(parsedResults.results, null, 2));
+    process.exit(parsedResults.results.success ? 0 : 1);
+}
 
 // Fix globalConfig - set rootDir to current working directory if null
 const globalConfig = {
@@ -811,8 +502,10 @@ const globalConfig = {
     ...jestOptions,
     rootDir:
         (parsedResults.globalConfig && parsedResults.globalConfig.rootDir) ||
-        cwd,
-    testPathPatterns,
+        process.cwd(),
+    testPathPatterns: new TestPathPatterns(
+        jestOptions.testPathPattern ? [jestOptions.testPathPattern] : []
+    ),
 };
 
 const reporterConfigs = [];
