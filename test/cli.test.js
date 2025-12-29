@@ -1,9 +1,9 @@
+import { describe, expect, it } from "@jest/globals";
 import { spawn } from "child_process";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { describe, expect, it } from "vitest";
 
 dotenv.config({ quiet: true });
 
@@ -15,7 +15,7 @@ const __dirname = path.dirname(__filename);
  */
 function runCli(args = [], options = {}) {
     return new Promise((resolve, reject) => {
-        const cliPath = path.join(__dirname, "cli.js");
+        const cliPath = path.join(__dirname, "..", "src", "cli.js");
         const child = spawn("node", [cliPath, ...args], {
             cwd: options.cwd || process.cwd(),
             env: { ...process.env, ...options.env },
@@ -50,9 +50,6 @@ describe("CLI Integration Tests", () => {
     const demoDir = path.join(__dirname, "..", "demo");
     const demoPlaceFile = path.join(demoDir, "place.rbxl");
 
-    // Skip tests if demo files don't exist
-    const shouldSkip = !fs.existsSync(demoPlaceFile);
-
     describe("config file loading", () => {
         it("should error when config file does not exist", async () => {
             const { code, stderr } = await runCli([
@@ -65,13 +62,10 @@ describe("CLI Integration Tests", () => {
             expect(code).toBe(1);
         });
 
-        it.concurrent.skipIf(shouldSkip)(
+        it.concurrent(
             "should load config file when specified",
             async () => {
                 const configPath = path.join(demoDir, "src", "jest.config.ts");
-                if (!fs.existsSync(configPath)) {
-                    return;
-                }
 
                 // This test may fail if the config file is not in proper format
                 // Just checking that it attempts to load it
@@ -90,49 +84,34 @@ describe("CLI Integration Tests", () => {
     });
 
     describe("test filtering", () => {
-        it.concurrent.skipIf(shouldSkip)(
-            "should support testPathPattern as argument",
-            async () => {
-                const { stdout } = await runCli(
-                    ["--place", demoPlaceFile, "add"],
-                    { cwd: demoDir }
-                );
+        it("should support testPathPattern as argument", async () => {
+            const { stdout } = await runCli(["--place", demoPlaceFile, "add"], {
+                cwd: demoDir,
+            });
 
-                // Just verify it doesn't crash with the pattern
-                expect(stdout).toBeDefined();
-            },
-            15000
-        );
+            // Just verify it doesn't crash with the pattern
+            expect(stdout).toBeDefined();
+        }, 15000);
 
-        it.concurrent.skipIf(shouldSkip)(
-            "should support testNamePattern from environment variable",
-            async () => {
-                const { stdout } = await runCli(["--place", demoPlaceFile], {
-                    cwd: demoDir,
-                    env: { JEST_TEST_NAME_PATTERN: "should add" },
-                });
+        it("should support testNamePattern from environment variable", async () => {
+            const { stdout } = await runCli(["--place", demoPlaceFile], {
+                cwd: demoDir,
+                env: { JEST_TEST_NAME_PATTERN: "should add" },
+            });
 
-                expect(stdout).toBeDefined();
-            },
-            15000
-        );
+            expect(stdout).toBeDefined();
+        }, 15000);
     });
 
     describe("project discovery", () => {
-        it.concurrent.skipIf(shouldSkip)(
-            "should find default.project.json in place directory",
-            async () => {
-                const { stderr } = await runCli(["--place", demoPlaceFile], {
-                    cwd: demoDir,
-                });
+        it("should find default.project.json in place directory", async () => {
+            const { stderr } = await runCli(["--place", demoPlaceFile], {
+                cwd: demoDir,
+            });
 
-                // Should not warn about missing project file
-                expect(stderr).not.toContain(
-                    "Could not find default.project.json"
-                );
-            },
-            15000
-        );
+            // Should not warn about missing project file
+            expect(stderr).not.toContain("Could not find default.project.json");
+        }, 15000);
 
         it("should search subdirectories for default.project.json", async () => {
             // This tests the search logic, won't actually run tests
@@ -170,92 +149,68 @@ describe("CLI Integration Tests", () => {
     });
 
     describe("reporter configuration", () => {
-        it.concurrent.skipIf(shouldSkip)(
-            "should use default reporters when none specified",
-            async () => {
-                const { stdout } = await runCli(["--place", demoPlaceFile], {
-                    cwd: demoDir,
-                });
+        it("should use default reporters when none specified", async () => {
+            const { stdout } = await runCli(["--place", demoPlaceFile], {
+                cwd: demoDir,
+            });
 
-                // Default reporters should output test results
-                expect(stdout).toBeDefined();
-            },
-            15000
-        );
+            // Default reporters should output test results
+            expect(stdout).toBeDefined();
+        }, 15000);
 
-        it.concurrent.skipIf(shouldSkip)(
-            "should accept custom reporters via --reporters",
-            async () => {
-                const { stdout } = await runCli(
-                    ["--place", demoPlaceFile, "--reporters", "default"],
-                    { cwd: demoDir }
-                );
+        it("should accept custom reporters via --reporters", async () => {
+            const { stdout } = await runCli(
+                ["--place", demoPlaceFile, "--reporters", "default"],
+                { cwd: demoDir }
+            );
 
-                expect(stdout).toBeDefined();
-            },
-            15000
-        );
+            expect(stdout).toBeDefined();
+        }, 15000);
     });
 
     describe("CLI options", () => {
-        it.concurrent.skipIf(shouldSkip)(
-            "should accept --verbose flag",
-            async () => {
-                const { stdout } = await runCli(
-                    ["--place", demoPlaceFile, "--verbose"],
-                    { cwd: demoDir }
-                );
+        it("should accept --verbose flag", async () => {
+            const { stdout } = await runCli(
+                ["--place", demoPlaceFile, "--verbose"],
+                { cwd: demoDir }
+            );
 
-                expect(stdout).toBeDefined();
-            },
-            15000
-        );
+            expect(stdout).toBeDefined();
+        }, 15000);
 
-        it.concurrent.skipIf(shouldSkip)(
-            "should accept --ci flag",
-            async () => {
-                const { stdout } = await runCli(
-                    ["--place", demoPlaceFile, "--ci"],
-                    { cwd: demoDir }
-                );
+        it("should accept --ci flag", async () => {
+            const { stdout } = await runCli(
+                ["--place", demoPlaceFile, "--ci"],
+                { cwd: demoDir }
+            );
 
-                expect(stdout).toBeDefined();
-            },
-            15000
-        );
+            expect(stdout).toBeDefined();
+        }, 15000);
 
-        it.concurrent.skipIf(shouldSkip)(
-            "should accept --testTimeout",
-            async () => {
-                const { stdout } = await runCli(
-                    ["--place", demoPlaceFile, "--testTimeout", "1000"],
-                    { cwd: demoDir }
-                );
+        it("should accept --testTimeout", async () => {
+            const { stdout } = await runCli(
+                ["--place", demoPlaceFile, "--testTimeout", "1000"],
+                { cwd: demoDir }
+            );
 
-                expect(stdout).toBeDefined();
-            },
-            15000
-        );
+            expect(stdout).toBeDefined();
+        }, 15000);
 
-        it.skipIf(shouldSkip)(
-            "should accept --passWithNoTests",
-            async () => {
-                const { code } = await runCli(
-                    [
-                        "--place",
-                        demoPlaceFile,
-                        "--passWithNoTests",
-                        "--testPathPattern",
-                        "nonexistent",
-                    ],
-                    { cwd: demoDir }
-                );
+        it("should accept --passWithNoTests", async () => {
+            const { code } = await runCli(
+                [
+                    "--place",
+                    demoPlaceFile,
+                    "--passWithNoTests",
+                    "--testPathPattern",
+                    "nonexistent",
+                ],
+                { cwd: demoDir }
+            );
 
-                // Should pass even with no tests
-                expect(code).toBe(0);
-            },
-            15000
-        );
+            // Should pass even with no tests
+            expect(code).toBe(0);
+        }, 15000);
     });
 
     describe("error handling", () => {
@@ -287,32 +242,24 @@ describe("CLI Integration Tests", () => {
     });
 
     describe("output format", () => {
-        it.concurrent.skipIf(shouldSkip)(
-            "should output JSON when --json flag is used",
-            async () => {
-                const { stdout } = await runCli(
-                    ["--place", demoPlaceFile, "--json"],
-                    { cwd: demoDir }
-                );
+        it("should output JSON when --json flag is used", async () => {
+            const { stdout } = await runCli(
+                ["--place", demoPlaceFile, "--json"],
+                { cwd: demoDir }
+            );
 
-                expect(stdout).toBeDefined();
-            },
-            15000
-        );
+            expect(stdout).toBeDefined();
+        }, 15000);
 
-        it.concurrent.skipIf(shouldSkip)(
-            "should show config when --showConfig is used",
-            async () => {
-                const { code, stdout } = await runCli(
-                    ["--place", demoPlaceFile, "--showConfig"],
-                    { cwd: demoDir }
-                );
+        it("should show config when --showConfig is used", async () => {
+            const { code, stdout } = await runCli(
+                ["--place", demoPlaceFile, "--showConfig"],
+                { cwd: demoDir }
+            );
 
-                expect(code).toBe(0);
-                // Config output should be valid
-                expect(stdout).toBeDefined();
-            },
-            15000
-        );
+            expect(code).toBe(0);
+            // Config output should be valid
+            expect(stdout).toBeDefined();
+        }, 15000);
     });
 });

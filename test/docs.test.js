@@ -1,29 +1,44 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getCliOptions } from './docs.js';
-import fs from 'fs';
-import path from 'path';
+import {
+    afterEach,
+    beforeEach,
+    describe,
+    expect,
+    it,
+    jest,
+} from "@jest/globals";
+import fs from "fs";
+import path from "path";
+import { getCliOptions } from "../src/docs.js";
 
 // Mock fetch globally
-global.fetch = vi.fn();
-
-vi.mock('fs');
-
-describe('docs.js', () => {
-    const mockOptionsPath = path.join(process.cwd(), 'src', 'cli-options.json');
+global.fetch = jest.fn();
+describe("docs.js", () => {
+    const mockOptionsPath = path.join(process.cwd(), "src", "cli-options.json");
 
     beforeEach(() => {
-        vi.clearAllMocks();
+        jest.clearAllMocks();
+        jest.spyOn(fs, "existsSync").mockReturnValue(false);
+        jest.spyOn(fs, "readFileSync").mockReturnValue("");
+        jest.spyOn(fs, "writeFileSync").mockImplementation(() => {});
     });
 
     afterEach(() => {
-        vi.restoreAllMocks();
+        jest.restoreAllMocks();
     });
 
-    describe('getCliOptions', () => {
-        it('should return cached options if file exists', async () => {
+    describe("getCliOptions", () => {
+        it("should return cached options if file exists", async () => {
             const mockOptions = [
-                { name: '--verbose', type: '[boolean]', description: 'Display verbose output' },
-                { name: '--ci', type: '[boolean]', description: 'Run in CI mode' },
+                {
+                    name: "--verbose",
+                    type: "[boolean]",
+                    description: "Display verbose output",
+                },
+                {
+                    name: "--ci",
+                    type: "[boolean]",
+                    description: "Run in CI mode",
+                },
             ];
 
             fs.existsSync.mockReturnValue(true);
@@ -32,12 +47,14 @@ describe('docs.js', () => {
             const result = await getCliOptions();
 
             expect(result).toEqual(mockOptions);
-            expect(fs.existsSync).toHaveBeenCalledWith(expect.stringContaining('cli-options.json'));
+            expect(fs.existsSync).toHaveBeenCalledWith(
+                expect.stringContaining("cli-options.json")
+            );
             expect(fs.readFileSync).toHaveBeenCalled();
             expect(global.fetch).not.toHaveBeenCalled();
         });
 
-        it('should fetch from docs URL if cache does not exist', async () => {
+        it("should fetch from docs URL if cache does not exist", async () => {
             const mockMarkdown = `
 ### \`verbose\` [boolean]
 
@@ -63,11 +80,11 @@ Run in CI mode
             expect(result.length).toBeGreaterThan(0);
         });
 
-        it('should handle fetch errors gracefully', async () => {
+        it("should handle fetch errors gracefully", async () => {
             fs.existsSync.mockReturnValue(false);
             global.fetch.mockResolvedValue({
                 ok: false,
-                statusText: 'Not Found',
+                statusText: "Not Found",
             });
 
             const result = await getCliOptions();
@@ -75,16 +92,16 @@ Run in CI mode
             expect(result).toEqual([]);
         });
 
-        it('should handle network errors', async () => {
+        it("should handle network errors", async () => {
             fs.existsSync.mockReturnValue(false);
-            global.fetch.mockRejectedValue(new Error('Network error'));
+            global.fetch.mockRejectedValue(new Error("Network error"));
 
             const result = await getCliOptions();
 
             expect(result).toEqual([]);
         });
 
-        it('should handle corrupted cache file', async () => {
+        it("should handle corrupted cache file", async () => {
             const mockMarkdown = `
 ### \`verbose\` [boolean]
 
@@ -92,7 +109,7 @@ Display verbose output
 `;
 
             fs.existsSync.mockReturnValue(true);
-            fs.readFileSync.mockReturnValue('invalid json{');
+            fs.readFileSync.mockReturnValue("invalid json{");
             global.fetch.mockResolvedValue({
                 ok: true,
                 text: async () => mockMarkdown,
@@ -106,7 +123,7 @@ Display verbose output
             expect(result).toBeInstanceOf(Array);
         });
 
-        it('should parse markdown with HTML entities', async () => {
+        it("should parse markdown with HTML entities", async () => {
             const mockMarkdown = `
 ### \`testTimeout\` [number&lt;ms&gt;]
 
@@ -122,13 +139,15 @@ Set test timeout
 
             const result = await getCliOptions();
 
-            const timeoutOption = result.find(opt => opt.name === '--testTimeout');
+            const timeoutOption = result.find(
+                (opt) => opt.name === "--testTimeout"
+            );
             expect(timeoutOption).toBeDefined();
-            expect(timeoutOption.type).toContain('<');
-            expect(timeoutOption.type).toContain('>');
+            expect(timeoutOption.type).toContain("<");
+            expect(timeoutOption.type).toContain(">");
         });
 
-        it('should remove images and links from descriptions', async () => {
+        it("should remove images and links from descriptions", async () => {
             const mockMarkdown = `
 ### \`verbose\` [boolean]
 
@@ -148,12 +167,14 @@ Display verbose output
 
             const result = await getCliOptions();
 
-            const verboseOption = result.find(opt => opt.name === '--verbose');
-            expect(verboseOption.description).not.toContain('![');
-            expect(verboseOption.description).not.toContain('](');
+            const verboseOption = result.find(
+                (opt) => opt.name === "--verbose"
+            );
+            expect(verboseOption.description).not.toContain("![");
+            expect(verboseOption.description).not.toContain("](");
         });
 
-        it('should remove tip blocks from descriptions', async () => {
+        it("should remove tip blocks from descriptions", async () => {
             const mockMarkdown = `
 ### \`verbose\` [boolean]
 
@@ -175,12 +196,16 @@ More description
 
             const result = await getCliOptions();
 
-            const verboseOption = result.find(opt => opt.name === '--verbose');
-            expect(verboseOption.description).not.toContain(':::tip');
-            expect(verboseOption.description).toContain('Display verbose output');
+            const verboseOption = result.find(
+                (opt) => opt.name === "--verbose"
+            );
+            expect(verboseOption.description).not.toContain(":::tip");
+            expect(verboseOption.description).toContain(
+                "Display verbose output"
+            );
         });
 
-        it('should handle array types', async () => {
+        it("should handle array types", async () => {
             const mockMarkdown = `
 ### \`reporters\` [array&lt;moduleName | [moduleName, options]&gt;]
 
@@ -196,12 +221,14 @@ Custom reporters
 
             const result = await getCliOptions();
 
-            const reportersOption = result.find(opt => opt.name === '--reporters');
+            const reportersOption = result.find(
+                (opt) => opt.name === "--reporters"
+            );
             expect(reportersOption).toBeDefined();
-            expect(reportersOption.type).toContain('array');
+            expect(reportersOption.type).toContain("array");
         });
 
-        it('should remove HTML comments from markdown', async () => {
+        it("should remove HTML comments from markdown", async () => {
             const mockMarkdown = `
 <!-- This is a comment -->
 ### \`verbose\` [boolean]
@@ -220,11 +247,13 @@ Display verbose output
             const result = await getCliOptions();
 
             expect(result.length).toBeGreaterThan(0);
-            const verboseOption = result.find(opt => opt.name === '--verbose');
+            const verboseOption = result.find(
+                (opt) => opt.name === "--verbose"
+            );
             expect(verboseOption).toBeDefined();
         });
 
-        it('should parse multiple options correctly', async () => {
+        it("should parse multiple options correctly", async () => {
             const mockMarkdown = `
 ### \`verbose\` [boolean]
 
@@ -249,9 +278,9 @@ Set timeout
             const result = await getCliOptions();
 
             expect(result.length).toBe(3);
-            expect(result.map(opt => opt.name)).toContain('--verbose');
-            expect(result.map(opt => opt.name)).toContain('--ci');
-            expect(result.map(opt => opt.name)).toContain('--testTimeout');
+            expect(result.map((opt) => opt.name)).toContain("--verbose");
+            expect(result.map((opt) => opt.name)).toContain("--ci");
+            expect(result.map((opt) => opt.name)).toContain("--testTimeout");
         });
     });
 });

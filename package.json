@@ -14,10 +14,8 @@
         "type": "git"
     },
     "scripts": {
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "test:ui": "vitest --ui",
-        "test:coverage": "vitest run --coverage",
+        "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+        "test:coverage": "jest --coverage",
         "demo": "cd demo && npm run test"
     },
     "dependencies": {
@@ -31,6 +29,6 @@
         "@vitest/coverage-v8": "^4.0.16",
         "@vitest/ui": "^4.0.16",
         "dotenv": "^17.2.3",
-        "vitest": "^4.0.16"
+        "jest": "^30.2.0"
     }
 }
