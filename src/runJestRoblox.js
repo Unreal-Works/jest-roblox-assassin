@@ -13,9 +13,6 @@ import {
 } from "./discovery.js";
 import { ResultRewriter } from "./rewriter.js";
 
-const cachePath = ensureCache();
-const luauOutputPath = path.join(cachePath, "luau_output.log");
-
 /**
  * Executes JestRoblox with the given options, collects results and outputs them using reporters.
  * The options can also affect the behavior of what is done with the results.
@@ -27,17 +24,15 @@ export default async function runJestRoblox(options) {
     if (!options.place) {
         options.place = findPlaceFile();
     }
-    if (!options.skipExecution) {
-        if (!options.place) {
-            console.error(
-                "--place option is required to run tests. No .rbxl or .rbxlx file found in current directory or nearby."
-            );
-            return 1;
-        }
-        if (!fs.existsSync(options.place)) {
-            console.error("Invalid --place file specified: " + options.place);
-            return 1;
-        }
+    if (!options.place) {
+        console.error(
+            "--place option is required to run tests. No .rbxl or .rbxlx file found in current directory or nearby."
+        );
+        return 1;
+    }
+    if (!fs.existsSync(options.place)) {
+        console.error("Invalid --place file specified: " + options.place);
+        return 1;
     }
 
     // Load config file if specified
@@ -74,7 +69,7 @@ export default async function runJestRoblox(options) {
     let parsedResults;
 
     if (options.showConfig || options.listTests) {
-        const result = await executeLuauTest(options, luauOutputPath);
+        const result = await executeLuauTest(options);
         if (options.showConfig) {
             console.log(result.config);
         } else {
@@ -160,22 +155,7 @@ export default async function runJestRoblox(options) {
                         "|"
                     )})$`;
 
-                    const workerOutputPath = path.join(
-                        cachePath,
-                        `luau_output_worker_${worker.id}.log`
-                    );
-
-                    try {
-                        return await executeLuauTest(
-                            workerOptions,
-                            workerOutputPath
-                        );
-                    } finally {
-                        // Clean up worker output file
-                        if (fs.existsSync(workerOutputPath)) {
-                            fs.unlinkSync(workerOutputPath);
-                        }
-                    }
+                    return await executeLuauTest(workerOptions);
                 })
             );
 
@@ -301,7 +281,7 @@ export default async function runJestRoblox(options) {
         }
     } else {
         // Single worker execution (original behavior)
-        parsedResults = await executeLuauTest(options, luauOutputPath);
+        parsedResults = await executeLuauTest(options);
         if (parsedResults === undefined) return 1;
     }
 
@@ -443,10 +423,16 @@ export default async function runJestRoblox(options) {
 /**
  * Executes the Luau script to run Jest tests with the given options.
  * @param {object} options The Jest options to pass to the Luau script.
- * @param {string} workerOutputPath The file path to write the Luau output log.
  * @returns {Promise<any>} The parsed results from the Luau script.
  */
-async function executeLuauTest(options, workerOutputPath) {
+async function executeLuauTest(options) {
+    const cachePath = ensureCache();
+    const randomHash = Math.random().toString(36).substring(2, 8);
+    const luauOutputPath = path.join(
+        cachePath,
+        `luau_output_${randomHash}.log`
+    );
+
     const luauScript = `
 local jestOptions = game:GetService("HttpService"):JSONDecode([===[${JSON.stringify(
         options
@@ -490,28 +476,26 @@ end
 print("__SUCCESS_START__")
 print(success)
 print("__SUCCESS_END__")
-print("__PROJECTS_START__")
-local fullNameProjects = {}
-for i, v in pairs(projects) do
-    table.insert(fullNameProjects, v:GetFullName())
-end
-print(game:GetService("HttpService"):JSONEncode(fullNameProjects))
-print("__PROJECTS_END__")
 print("__RESULT_START__")
 return game:GetService("HttpService"):JSONEncode(resolved)
 `;
 
-    let luauExitCode = 0;
+    const luauExitCode = await executeLuau(luauScript, {
+        place: options.place,
+        silent: true,
+        exit: false,
+        out: luauOutputPath,
+    });
 
-    if (!options.skipExecution) {
-        luauExitCode = await executeLuau(luauScript, {
-            place: options.place,
-            silent: true,
-            exit: false,
-            out: workerOutputPath,
-        });
+    const outputLog = fs.readFileSync(luauOutputPath, "utf-8");
+    if (!options.debug) {
+        // Clean up Luau output file
+        try {
+            fs.unlinkSync(luauOutputPath);
+        } catch {
+            // Ignore
+        }
     }
-    const outputLog = fs.readFileSync(workerOutputPath, "utf-8");
 
     if (luauExitCode !== 0) {
         throw new Error(
@@ -521,6 +505,12 @@ return game:GetService("HttpService"):JSONEncode(resolved)
 
     if (options.listTests) {
         return outputLog;
+    }
+
+    if (options.debug) {
+        const firstBrace = outputLog.indexOf("{");
+        const lastSuccessStart = outputLog.lastIndexOf("__SUCCESS_START__");
+        console.log(outputLog.slice(firstBrace, lastSuccessStart));
     }
 
     if (options.showConfig) {

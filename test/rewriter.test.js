@@ -252,14 +252,6 @@ describe("ResultRewriter", () => {
         });
     });
 
-    describe("stripAnsi", () => {
-        it("should remove ANSI escape codes", () => {
-            const text = "\u001b[31mRed text\u001b[0m normal";
-            const result = rewriter.stripAnsi(text);
-            expect(result).toBe("Red text normal");
-        });
-    });
-
     describe("parseFrame", () => {
         it("should parse file path and line number", () => {
             fs.existsSync.mockReturnValue(true);

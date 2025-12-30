@@ -26,7 +26,6 @@ program
         "--maxWorkers <number>",
         "maximum number of parallel workers to use"
     )
-    .option("--skipExecution", "skip executing tests (internal use only)")
     .option(
         "--testLocationInResults",
         "Adds a location field to test results. Useful if you want to report the location of a test in a reporter."

@@ -147,9 +147,14 @@ export function findPlaceFile(cwd = process.cwd()) {
  * @returns {{ rootDir: string, outDir: string }} The discovered rootDir and outDir.
  */
 export function discoverCompilerOptions(file = null) {
+    let configPath;
     if (!file || !fs.existsSync(file)) {
-        file = path.join(process.cwd(), "tsconfig.json");
+        configPath = path.resolve(process.cwd(), "tsconfig.json");
+    } else {
+        configPath = path.resolve(file);
     }
+
+    const configDir = path.dirname(configPath);
 
     const stripJsonComments = (text) =>
         text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
@@ -164,19 +169,27 @@ export function discoverCompilerOptions(file = null) {
         }
     };
 
-    const compilerOptions = readJsonWithComments(file)?.compilerOptions || {};
-    const dirs = {
-        rootDir: compilerOptions.rootDir || "src",
-        outDir: compilerOptions.outDir || "out",
-    };
+    const compilerOptions = readJsonWithComments(configPath)?.compilerOptions || {};
+    let rootDir = compilerOptions.rootDir || "src";
+    let outDir = compilerOptions.outDir || "out";
 
-    if (!fs.existsSync(dirs.rootDir)) {
-        dirs.rootDir = ".";
+    const resolveConfigPath = (value) =>
+        path.isAbsolute(value) ? value : path.join(configDir, value);
+
+    const rootDirPath = resolveConfigPath(rootDir);
+    const outDirPath = resolveConfigPath(outDir);
+
+    if (!fs.existsSync(rootDirPath)) {
+        rootDir = ".";
     }
-    if (!fs.existsSync(dirs.outDir)) {
-        dirs.outDir = dirs.rootDir;
+    if (!fs.existsSync(outDirPath)) {
+        outDir = rootDir;
     }
-    return dirs;
+
+    return {
+        rootDir,
+        outDir,
+    };
 }
 
 /**

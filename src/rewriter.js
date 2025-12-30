@@ -7,6 +7,18 @@ export class ResultRewriter {
     constructor({ rojoProject, compilerOptions }) {
         this.rojoProject = rojoProject;
         this.compilerOptions = compilerOptions;
+        this.luauPathMap = new Map();
+        const projectRoot = this.rojoProject?.root ?? process.cwd();
+        this.projectRoot = projectRoot;
+        
+        const rootDirRelative = compilerOptions?.rootDir ?? "src";
+        const outDirRelative = compilerOptions?.outDir ?? "out";
+        const absoluteRootDir = path.isAbsolute(rootDirRelative)
+            ? rootDirRelative
+            : path.join(projectRoot, rootDirRelative);
+        const absoluteOutDir = path.isAbsolute(outDirRelative)
+            ? outDirRelative
+            : path.join(projectRoot, outDirRelative);
 
         /**
          * A map from datamodel paths to their corresponding Luau and source file paths.
@@ -27,54 +39,54 @@ export class ResultRewriter {
                     const luauPath = child.filePaths[0];
                     if (!luauPath) continue;
 
+                    const absoluteLuauPath = path.join(projectRoot, luauPath);
                     let sourcePath;
 
-                    // If in outDir, map back to source using compiler options
-                    if (
-                        compilerOptions &&
-                        luauPath.startsWith(compilerOptions.outDir)
-                    ) {
-                        const relativePath = path.relative(
-                            compilerOptions.outDir,
-                            luauPath
-                        );
-                        sourcePath = path.join(
-                            compilerOptions.rootDir,
-                            relativePath
-                        );
-                        // if called init, adjust to index
-                        if (path.basename(sourcePath).startsWith("init.")) {
-                            sourcePath = path.join(
-                                path.dirname(sourcePath),
-                                "index" + path.extname(sourcePath)
+                    if (absoluteOutDir) {
+                        const normalizedOutDir = absoluteOutDir.replace(/\\/g, "/");
+                        const normalizedLuau = absoluteLuauPath.replace(/\\/g, "/");
+                        if (normalizedLuau.startsWith(normalizedOutDir)) {
+                            const relativePath = path.relative(
+                                absoluteOutDir,
+                                absoluteLuauPath
                             );
-                        }
-
-                        // check if sourcePath exists
-                        if (!fs.existsSync(sourcePath)) {
-                            // if not, try changing extension to .ts or .tsx
-                            const withTs = sourcePath.replace(
-                                /\.(lua|luau)$/,
-                                ".ts"
+                            let candidateSource = path.join(
+                                absoluteRootDir,
+                                relativePath
                             );
-                            const withTsx = sourcePath.replace(
-                                /\.(lua|luau)$/,
-                                ".tsx"
-                            );
-                            if (fs.existsSync(withTs)) {
-                                sourcePath = withTs;
-                            } else if (fs.existsSync(withTsx)) {
-                                sourcePath = withTsx;
+                            if (path.basename(candidateSource).startsWith("init.")) {
+                                candidateSource = path.join(
+                                    path.dirname(candidateSource),
+                                    "index" + path.extname(candidateSource)
+                                );
                             }
 
-                            // if still not, set to undefined
-                            if (!fs.existsSync(sourcePath)) {
-                                sourcePath = undefined;
+                            if (!fs.existsSync(candidateSource)) {
+                                const withTs = candidateSource.replace(
+                                    /\.(lua|luau)$/,
+                                    ".ts"
+                                );
+                                const withTsx = candidateSource.replace(
+                                    /\.(lua|luau)$/,
+                                    ".tsx"
+                                );
+                                if (fs.existsSync(withTs)) {
+                                    candidateSource = withTs;
+                                } else if (fs.existsSync(withTsx)) {
+                                    candidateSource = withTsx;
+                                }
+                            }
+
+                            if (fs.existsSync(candidateSource)) {
+                                sourcePath = candidateSource;
                             }
                         }
                     }
 
-                    map.set(datamodelPath, { luauPath, sourcePath });
+                    const entry = { luauPath, absoluteLuauPath, sourcePath };
+                    map.set(datamodelPath, entry);
+                    const normalizedLuauPath = luauPath.replace(/\\/g, "/");
+                    this.luauPathMap.set(normalizedLuauPath, entry);
                 }
             };
 
@@ -134,8 +146,15 @@ export class ResultRewriter {
      * @returns {string} The formatted path.
      */
     formatPath(filePath) {
-        return path
-            .relative(process.cwd(), filePath)
+        const baseDir = this.projectRoot || process.cwd();
+        let relativePath = path.relative(baseDir, filePath);
+        if (!relativePath || relativePath.startsWith("..")) {
+            relativePath = path.relative(process.cwd(), filePath);
+        }
+        if (!relativePath) {
+            relativePath = filePath;
+        }
+        return relativePath
             .split(path.sep)
             .join("/")
             .replace(/\\/g, "/");
@@ -148,10 +167,25 @@ export class ResultRewriter {
      * @returns {string | undefined} The mapped source location as "path:line" or undefined if not found.
      */
     mapDatamodelFrame(datamodelPath, lineNumber) {
-        const entry = this.modulePathMap.get(datamodelPath);
+        const normalizedPath = datamodelPath.replace(/\\/g, "/");
+        let entry =
+            this.modulePathMap.get(datamodelPath) ||
+            this.modulePathMap.get(normalizedPath);
+        if (!entry) {
+            entry = this.luauPathMap.get(normalizedPath);
+        }
+        if (!entry && this.projectRoot) {
+            const candidateAbsolute = path.isAbsolute(datamodelPath)
+                ? path.resolve(datamodelPath)
+                : path.join(this.projectRoot, normalizedPath);
+            const relativeToRoot = path
+                .relative(this.projectRoot, candidateAbsolute)
+                .replace(/\\/g, "/");
+            entry = this.luauPathMap.get(relativeToRoot);
+        }
         if (!entry) return undefined;
         const mappedLine = this.findSourceLine(
-            entry.luauPath,
+            entry.absoluteLuauPath,
             entry.sourcePath,
             lineNumber
         );
@@ -251,7 +285,22 @@ export class ResultRewriter {
         if (!testFilePath) return testFilePath;
 
         // Attempt direct lookup first
-        const entry = this.modulePathMap.get(testFilePath);
+        const normalizedPath = testFilePath.replace(/\\/g, "/");
+        let entry =
+            this.modulePathMap.get(testFilePath) ||
+            this.modulePathMap.get(normalizedPath);
+        if (!entry) {
+            entry = this.luauPathMap.get(normalizedPath);
+        }
+        if (!entry && this.projectRoot) {
+            const candidateAbsolute = path.isAbsolute(testFilePath)
+                ? path.resolve(testFilePath)
+                : path.join(this.projectRoot, normalizedPath);
+            const relativeToRoot = path
+                .relative(this.projectRoot, candidateAbsolute)
+                .replace(/\\/g, "/");
+            entry = this.luauPathMap.get(relativeToRoot);
+        }
         if (entry?.sourcePath) {
             return entry.sourcePath;
         }
