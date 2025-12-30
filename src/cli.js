@@ -19,8 +19,14 @@ program
     .version("1.0.0")
     .argument("[testPathPattern]", "test path pattern to match")
     .option("--place <file>", "path to Roblox place file")
-    .option("--project <file>", "path to Rojo project JSON file. Used to map output back to source files")
-    .option("--tsconfig <file>", "path to tsconfig.json file. Used to map output back to source files")
+    .option(
+        "--project <file>",
+        "path to Rojo project JSON file. Used to map output back to source files"
+    )
+    .option(
+        "--tsconfig <file>",
+        "path to tsconfig.json file. Used to map output back to source files"
+    )
     .option("--config <file>", "path to Jest config file")
     .option(
         "--maxWorkers <number>",
@@ -37,7 +43,8 @@ program
     .option(
         "--watchAll",
         "Watch files for changes and rerun all tests when something changes. If you want to re-run only the tests that depend on the changed files, use the --watch option."
-    );
+    )
+    .option("--skipExecution", "development command");
 
 for (const opt of cliOptions) {
     const flagName = opt.name.replace(/^--/, "");

@@ -1,5 +1,9 @@
 import { TestPathPatterns } from "@jest/pattern";
-import { DefaultReporter, SummaryReporter } from "@jest/reporters";
+import {
+    DefaultReporter,
+    SummaryReporter,
+    VerboseReporter,
+} from "@jest/reporters";
 import fs from "fs";
 import path from "path";
 import { executeLuau } from "rbxluau";
@@ -82,7 +86,7 @@ export default async function runJestRoblox(options) {
     const maxWorkers = options.maxWorkers || 1;
     const useParallel = maxWorkers > 1;
     const executeSingleWorker = async () => {
-        return await executeLuauTest(options) ?? { exit: 1 };
+        return (await executeLuauTest(options)) ?? { exit: 1 };
     };
 
     if (useParallel && !options.testPathPattern) {
@@ -356,7 +360,18 @@ export default async function runJestRoblox(options) {
         }
     } else {
         // Default reporters
-        reporterConfigs.push({ Reporter: DefaultReporter, options: undefined });
+        if (options.verbose) {
+            reporterConfigs.push({
+                Reporter: VerboseReporter,
+                options: undefined,
+            });
+        } else {
+            reporterConfigs.push({
+                Reporter: DefaultReporter,
+                options: undefined,
+            });
+        }
+
         reporterConfigs.push({ Reporter: SummaryReporter, options: undefined });
     }
 
@@ -427,7 +442,10 @@ export default async function runJestRoblox(options) {
  */
 async function executeLuauTest(options) {
     const cachePath = ensureCache();
-    const randomHash = Math.random().toString(36).substring(2, 8);
+    const randomHash =
+        options.debug || options.skipExecution
+            ? "debug"
+            : Math.random().toString(36).substring(2, 8);
     const luauOutputPath = path.join(
         cachePath,
         `luau_output_${randomHash}.log`
@@ -480,15 +498,20 @@ print("__RESULT_START__")
 return game:GetService("HttpService"):JSONEncode(resolved)
 `;
 
-    const luauExitCode = await executeLuau(luauScript, {
-        place: options.place,
-        silent: true,
-        exit: false,
-        out: luauOutputPath,
-    });
+    let luauExitCode;
+    if (options.skipExecution) {
+        luauExitCode = 0;
+    } else {
+        luauExitCode = await executeLuau(luauScript, {
+            place: options.place,
+            silent: true,
+            exit: false,
+            out: luauOutputPath,
+        });
+    }
 
     const outputLog = fs.readFileSync(luauOutputPath, "utf-8");
-    if (!options.debug) {
+    if (!options.debug && !options.skipExecution) {
         // Clean up Luau output file
         try {
             fs.unlinkSync(luauOutputPath);
