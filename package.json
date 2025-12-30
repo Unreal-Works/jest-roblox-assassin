@@ -16,6 +16,7 @@
     "scripts": {
         "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
         "test:coverage": "jest --coverage",
+        "build:demo": "cd demo && npm install && npm run build",
         "demo": "cd demo && npm run test"
     },
     "dependencies": {
