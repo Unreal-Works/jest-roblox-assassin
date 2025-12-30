@@ -81,8 +81,11 @@ export default async function runJestRoblox(options) {
     // Check if we should use parallel execution
     const maxWorkers = options.maxWorkers || 1;
     const useParallel = maxWorkers > 1;
+    const executeSingleWorker = async () => {
+        return await executeLuauTest(options) ?? { exit: 1 };
+    };
 
-    if (useParallel) {
+    if (useParallel && !options.testPathPattern) {
         // Discover test files from filesystem
         const testSuites = discoverTestFilesFromFilesystem(
             compilerOptions,
@@ -107,12 +110,9 @@ export default async function runJestRoblox(options) {
                     success: true,
                 },
             };
-        } else if (testSuites.length === 1) {
-            // If only one test suite, no point in splitting
-            if (options.verbose) {
-                console.log("Running single test suite");
-            }
-            parsedResults = await executeLuauTest(options, luauOutputPath);
+        } else if (testSuites.length <= 1) {
+            // Only one test suite, run single worker
+            parsedResults = await executeSingleWorker();
         } else {
             // Split test suites across workers
             const workers = [];
@@ -280,10 +280,10 @@ export default async function runJestRoblox(options) {
             };
         }
     } else {
-        // Single worker execution (original behavior)
-        parsedResults = await executeLuauTest(options);
-        if (parsedResults === undefined) return 1;
+        parsedResults = await executeSingleWorker();
     }
+
+    if (parsedResults.exit !== undefined) return parsedResults.exit;
 
     new ResultRewriter({ compilerOptions, rojoProject }).rewriteParsedResults(
         parsedResults.results
@@ -510,7 +510,15 @@ return game:GetService("HttpService"):JSONEncode(resolved)
     if (options.debug) {
         const firstBrace = outputLog.indexOf("{");
         const lastSuccessStart = outputLog.lastIndexOf("__SUCCESS_START__");
-        console.log(outputLog.slice(firstBrace, lastSuccessStart));
+        // Find the last brace before __SUCCESS_START__
+        let lastBrace = outputLog.lastIndexOf("}", lastSuccessStart);
+        if (lastBrace !== -1) {
+            console.log(outputLog.slice(firstBrace, lastBrace + 1));
+        } else {
+            console.warn(
+                `Failed to parse debug output log at ${luauOutputPath}`
+            );
+        }
     }
 
     if (options.showConfig) {
@@ -526,22 +534,34 @@ return game:GetService("HttpService"):JSONEncode(resolved)
     );
     const resultMatch = outputLog.match(/__RESULT_START__\s*([\s\S]*)$/s);
 
-    if (!successMatch || !resultMatch) {
+    if (!successMatch) {
         throw new Error(`Failed to parse output log:\n${outputLog}`);
     }
 
     const success = successMatch[1] === "true";
-    const result = JSON.parse(resultMatch[1].trim());
+    const result = resultMatch[1];
 
-    if (!success) {
-        if (typeof result === "string") {
-            throw new Error(`Jest execution failed: ${result}`);
-        } else {
-            throw new Error(
-                `Jest execution failed: ${JSON.stringify(result, null, 2)}`
-            );
-        }
+    const errorOutput = outputLog.split("__SUCCESS_START__")[0];
+    if (errorOutput.includes("No tests found, exiting with code")) {
+        const startIndex = errorOutput.indexOf(
+            "No tests found, exiting with code"
+        );
+        const endIndex = errorOutput.indexOf("__SUCCESS_START__");
+        const message = errorOutput.slice(startIndex, endIndex).trim();
+        console.log(message);
+        return {
+            exit: options.passWithNoTests ? 0 : 1,
+        };
     }
 
-    return result;
+    if (!success) {
+        console.error("Luau test execution failed:\n" + errorOutput);
+        if (result) {
+            console.error("Result:\n" + result);
+        }
+    }
+    if (!result)
+        throw new Error(`No result found in output log:\n${outputLog}`);
+
+    return JSON.parse(result);
 }

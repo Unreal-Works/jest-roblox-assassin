@@ -1,0 +1,6 @@
+No tests found, exiting with code 0
+__SUCCESS_START__
+true
+__SUCCESS_END__
+__RESULT_START__
+{"globalConfig":{"maxWorkers":1,"rootDir":null,"json":false,"expand":false,"listTests":false,"maxConcurrency":5,"passWithNoTests":true,"testFailureExitCode":1,"updateSnapshot":"new","bail":0,"testPathPattern":"nonexistent_pattern_xyz","noStackTrace":false,"reporters":[],"projects":[],"runTestsByPath":false,"skipFilter":false},"results":{"numPassedTests":0,"numPendingTestSuites":0,"numFailedTests":0,"numFailedTestSuites":0,"numPassedTestSuites":0,"snapshot":{"total":0,"filesAdded":0,"filesRemovedList":[],"updated":0,"added":0,"failure":false,"unchecked":0,"filesUpdated":0,"unmatched":0,"filesUnmatched":0,"filesRemoved":0,"uncheckedKeysByFile":[],"didUpdate":false,"matched":0},"testResults":[],"startTime":1767098488629,"openHandles":[],"numTotalTests":0,"success":true,"numTotalTestSuites":0,"numRuntimeErrorTestSuites":0,"numPendingTests":0,"numTodoTests":0,"wasInterrupted":false}}
