@@ -39,7 +39,7 @@ const runJestRoblox = (await import("../src/runJestRoblox.js")).default;
 
 dotenv.config({ quiet: true });
 
-describe("runner.js", () => {
+describe("runJestRoblox.js", () => {
     it("should exit gracefully if --place file is missing", async () => {
         const consoleErrorSpy = jest
             .spyOn(console, "error")
