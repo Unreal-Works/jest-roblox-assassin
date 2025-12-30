@@ -1,0 +1,591 @@
+{
+  "numPassedTests": 11,
+  "numPendingTestSuites": 0,
+  "numFailedTests": 7,
+  "numFailedTestSuites": 4,
+  "numPassedTestSuites": 3,
+  "snapshot": {
+    "total": 0,
+    "filesAdded": 0,
+    "filesRemovedList": [],
+    "updated": 0,
+    "added": 0,
+    "failure": false,
+    "unchecked": 0,
+    "filesUpdated": 0,
+    "unmatched": 0,
+    "filesUnmatched": 0,
+    "filesRemoved": 0,
+    "uncheckedKeysByFile": [],
+    "didUpdate": false,
+    "matched": 0
+  },
+  "testResults": [
+    {
+      "leaks": false,
+      "perfStats": {
+        "runtime": 61,
+        "slow": false,
+        "start": 1767039481801,
+        "end": 1767039481862
+      },
+      "skipped": false,
+      "numFailingTests": 4,
+      "openHandles": [],
+      "testResults": [
+        {
+          "failureMessages": [
+            "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: 30\nReceived: 10\n[string \"ReplicatedStorage.src.__tests__.add.spec\"]:10\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+          ],
+          "failureDetails": [
+            {
+              "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: 30\nReceived: 10",
+              "__stack": "[string \"ReplicatedStorage.src.__tests__.add.spec\"]:10\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n",
+              "name": "Error",
+              "matcherResult": {
+                "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: 30\nReceived: 10",
+                "name": "toBe",
+                "expected": 30,
+                "pass": false,
+                "actual": 10
+              },
+              "stack": "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: 30\nReceived: 10\n[string \"ReplicatedStorage.src.__tests__.add.spec\"]:10\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+            }
+          ],
+          "numPassingAsserts": 0,
+          "duration": 0,
+          "ancestorTitles": [
+            "add"
+          ],
+          "invocations": 1,
+          "status": "failed",
+          "fullName": "add fails when expecting 5 + 5 to equal 30",
+          "retryReasons": [],
+          "title": "fails when expecting 5 + 5 to equal 30"
+        },
+        {
+          "failureMessages": [
+            "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: 20\nReceived: 25\n[string \"ReplicatedStorage.src.__tests__.add.spec\"]:13\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+          ],
+          "failureDetails": [
+            {
+              "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: 20\nReceived: 25",
+              "__stack": "[string \"ReplicatedStorage.src.__tests__.add.spec\"]:13\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n",
+              "name": "Error",
+              "matcherResult": {
+                "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: 20\nReceived: 25",
+                "name": "toBe",
+                "expected": 20,
+                "pass": false,
+                "actual": 25
+              },
+              "stack": "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: 20\nReceived: 25\n[string \"ReplicatedStorage.src.__tests__.add.spec\"]:13\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+            }
+          ],
+          "numPassingAsserts": 0,
+          "duration": 0,
+          "ancestorTitles": [
+            "add"
+          ],
+          "invocations": 1,
+          "status": "failed",
+          "fullName": "add fails when expecting 10 + 15 to equal 20",
+          "retryReasons": [],
+          "title": "fails when expecting 10 + 15 to equal 20"
+        },
+        {
+          "failureMessages": [
+            "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: 10\nReceived: 15\n[string \"ReplicatedStorage.src.__tests__.add.spec\"]:16\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+          ],
+          "failureDetails": [
+            {
+              "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: 10\nReceived: 15",
+              "__stack": "[string \"ReplicatedStorage.src.__tests__.add.spec\"]:16\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n",
+              "name": "Error",
+              "matcherResult": {
+                "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: 10\nReceived: 15",
+                "name": "toBe",
+                "expected": 10,
+                "pass": false,
+                "actual": 15
+              },
+              "stack": "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: 10\nReceived: 15\n[string \"ReplicatedStorage.src.__tests__.add.spec\"]:16\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+            }
+          ],
+          "numPassingAsserts": 0,
+          "duration": 0,
+          "ancestorTitles": [
+            "add"
+          ],
+          "invocations": 1,
+          "status": "failed",
+          "fullName": "add fails when expecting 7 + 8 to equal 10",
+          "retryReasons": [],
+          "title": "fails when expecting 7 + 8 to equal 10"
+        },
+        {
+          "failureMessages": [
+            "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: 1\nReceived: 0\n[string \"ReplicatedStorage.src.__tests__.add.spec\"]:19\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+          ],
+          "failureDetails": [
+            {
+              "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: 1\nReceived: 0",
+              "__stack": "[string \"ReplicatedStorage.src.__tests__.add.spec\"]:19\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n",
+              "name": "Error",
+              "matcherResult": {
+                "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: 1\nReceived: 0",
+                "name": "toBe",
+                "expected": 1,
+                "pass": false,
+                "actual": 0
+              },
+              "stack": "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: 1\nReceived: 0\n[string \"ReplicatedStorage.src.__tests__.add.spec\"]:19\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+            }
+          ],
+          "numPassingAsserts": 0,
+          "duration": 0,
+          "ancestorTitles": [
+            "add"
+          ],
+          "invocations": 1,
+          "status": "failed",
+          "fullName": "add fails when expecting 0 + 0 to equal 1",
+          "retryReasons": [],
+          "title": "fails when expecting 0 + 0 to equal 1"
+        }
+      ],
+      "snapshot": {
+        "updated": 0,
+        "unmatched": 0,
+        "fileDeleted": false,
+        "uncheckedKeys": [],
+        "unchecked": 0,
+        "added": 0,
+        "matched": 0
+      },
+      "testFilePath": "src/__tests__/add.spec.ts",
+      "numTodoTests": 0,
+      "numPendingTests": 0,
+      "numPassingTests": 0,
+      "failureMessage": "\u001b[1m\u001b[31m  ● add › fails when expecting 5 + 5 to equal 30\u001b[39m\u001b[22m\n\n    \u001b[90mexpect(\u001b[39m\u001b[31mreceived\u001b[39m\u001b[90m).\u001b[39m\u001b[37mtoBe\u001b[39m\u001b[90m(\u001b[39m\u001b[32mexpected\u001b[39m\u001b[90m)\u001b[39m\u001b[90m -- Object.is equality\u001b[39m\n\n    Expected:\u001b[32m 30\u001b[39m\n    Received:\u001b[31m 10\u001b[39m\n\n      \u001b[90m4 |\u001b[39m describe(\u001b[32m\"add\"\u001b[39m\u001b[33m,\u001b[39m () \u001b[33m=>\u001b[39m {\n\u001b[2m      \u001b[90m5 |\u001b[39m \tit(\u001b[32m\"fails when expecting 5 + 5 to equal 30\"\u001b[39m\u001b[33m,\u001b[39m () \u001b[33m=>\u001b[39m {\u001b[22m\n\u001b[2m    \u001b[1m\u001b[31m>\u001b[39m\u001b[22m\u001b[2m \u001b[90m6 |\u001b[39m \t\texpect(\u001b[35m5\u001b[39m \u001b[33m+\u001b[39m \u001b[35m5\u001b[39m)\u001b[33m.\u001b[39mtoBe(\u001b[35m30\u001b[39m)\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m7 |\u001b[39m \t})\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m8 |\u001b[39m \u001b[22m\n\u001b[2m      \u001b[90m9 |\u001b[39m \tit(\u001b[32m\"fails when expecting 10 + 15 to equal 20\"\u001b[39m\u001b[33m,\u001b[39m () \u001b[33m=>\u001b[39m {\u001b[22m\n\n      \u001b[36msrc/__tests__/add.spec.ts\u001b[39m\u001b[90m:6\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/jest-circus/src/circus/utils.lua\u001b[39m\u001b[90m:369\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:172\u001b[39m function runExecutor\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:299\u001b[39m\n\u001b[1m\u001b[31m\u001b[39m\u001b[22m\n\u001b[1m\u001b[31m\u001b[39m\u001b[22m\n\u001b[1m\u001b[31m  ● add › fails when expecting 10 + 15 to equal 20\u001b[39m\u001b[22m\n\n    \u001b[90mexpect(\u001b[39m\u001b[31mreceived\u001b[39m\u001b[90m).\u001b[39m\u001b[37mtoBe\u001b[39m\u001b[90m(\u001b[39m\u001b[32mexpected\u001b[39m\u001b[90m)\u001b[39m\u001b[90m -- Object.is equality\u001b[39m\n\n    Expected:\u001b[32m 20\u001b[39m\n    Received:\u001b[31m 25\u001b[39m\n\n      \u001b[90m 8 |\u001b[39m \n\u001b[2m      \u001b[90m 9 |\u001b[39m \tit(\u001b[32m\"fails when expecting 10 + 15 to equal 20\"\u001b[39m\u001b[33m,\u001b[39m () \u001b[33m=>\u001b[39m {\u001b[22m\n\u001b[2m    \u001b[1m\u001b[31m>\u001b[39m\u001b[22m\u001b[2m \u001b[90m10 |\u001b[39m \t\texpect(\u001b[35m10\u001b[39m \u001b[33m+\u001b[39m \u001b[35m15\u001b[39m)\u001b[33m.\u001b[39mtoBe(\u001b[35m20\u001b[39m)\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m11 |\u001b[39m \t})\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m12 |\u001b[39m \u001b[22m\n\u001b[2m      \u001b[90m13 |\u001b[39m \tit(\u001b[32m\"fails when expecting 7 + 8 to equal 10\"\u001b[39m\u001b[33m,\u001b[39m () \u001b[33m=>\u001b[39m {\u001b[22m\n\n      \u001b[36msrc/__tests__/add.spec.ts\u001b[39m\u001b[90m:10\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/jest-circus/src/circus/utils.lua\u001b[39m\u001b[90m:369\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:172\u001b[39m function runExecutor\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:299\u001b[39m\n\u001b[1m\u001b[31m\u001b[39m\u001b[22m\n\u001b[1m\u001b[31m\u001b[39m\u001b[22m\n\u001b[1m\u001b[31m  ● add › fails when expecting 7 + 8 to equal 10\u001b[39m\u001b[22m\n\n    \u001b[90mexpect(\u001b[39m\u001b[31mreceived\u001b[39m\u001b[90m).\u001b[39m\u001b[37mtoBe\u001b[39m\u001b[90m(\u001b[39m\u001b[32mexpected\u001b[39m\u001b[90m)\u001b[39m\u001b[90m -- Object.is equality\u001b[39m\n\n    Expected:\u001b[32m 10\u001b[39m\n    Received:\u001b[31m 15\u001b[39m\n\n      \u001b[90m12 |\u001b[39m \n\u001b[2m      \u001b[90m13 |\u001b[39m \tit(\u001b[32m\"fails when expecting 7 + 8 to equal 10\"\u001b[39m\u001b[33m,\u001b[39m () \u001b[33m=>\u001b[39m {\u001b[22m\n\u001b[2m    \u001b[1m\u001b[31m>\u001b[39m\u001b[22m\u001b[2m \u001b[90m14 |\u001b[39m \t\texpect(\u001b[35m7\u001b[39m \u001b[33m+\u001b[39m \u001b[35m8\u001b[39m)\u001b[33m.\u001b[39mtoBe(\u001b[35m10\u001b[39m)\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m15 |\u001b[39m \t})\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m16 |\u001b[39m \u001b[22m\n\u001b[2m      \u001b[90m17 |\u001b[39m \tit(\u001b[32m\"fails when expecting 0 + 0 to equal 1\"\u001b[39m\u001b[33m,\u001b[39m () \u001b[33m=>\u001b[39m {\u001b[22m\n\n      \u001b[36msrc/__tests__/add.spec.ts\u001b[39m\u001b[90m:14\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/jest-circus/src/circus/utils.lua\u001b[39m\u001b[90m:369\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:172\u001b[39m function runExecutor\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:299\u001b[39m\n\u001b[1m\u001b[31m\u001b[39m\u001b[22m\n\u001b[1m\u001b[31m\u001b[39m\u001b[22m\n\u001b[1m\u001b[31m  ● add › fails when expecting 0 + 0 to equal 1\u001b[39m\u001b[22m\n\n    \u001b[90mexpect(\u001b[39m\u001b[31mreceived\u001b[39m\u001b[90m).\u001b[39m\u001b[37mtoBe\u001b[39m\u001b[90m(\u001b[39m\u001b[32mexpected\u001b[39m\u001b[90m)\u001b[39m\u001b[90m -- Object.is equality\u001b[39m\n\n    Expected:\u001b[32m 1\u001b[39m\n    Received:\u001b[31m 0\u001b[39m\n\n\n      \u001b[90m16 |\u001b[39m \n\u001b[2m      \u001b[90m17 |\u001b[39m \tit(\u001b[32m\"fails when expecting 0 + 0 to equal 1\"\u001b[39m\u001b[33m,\u001b[39m () \u001b[33m=>\u001b[39m {\u001b[22m\n\u001b[2m    \u001b[1m\u001b[31m>\u001b[39m\u001b[22m\u001b[2m \u001b[90m18 |\u001b[39m \t\texpect(\u001b[35m0\u001b[39m \u001b[33m+\u001b[39m \u001b[35m0\u001b[39m)\u001b[33m.\u001b[39mtoBe(\u001b[35m1\u001b[39m)\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m19 |\u001b[39m \t})\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m20 |\u001b[39m })\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m21 |\u001b[39m \u001b[22m\n\n      \u001b[36msrc/__tests__/add.spec.ts\u001b[39m\u001b[90m:18\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/jest-circus/src/circus/utils.lua\u001b[39m\u001b[90m:369\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:172\u001b[39m function runExecutor\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:299\u001b[39m\n"
+    },
+    {
+      "leaks": false,
+      "perfStats": {
+        "runtime": 5,
+        "slow": false,
+        "start": 1767039481929,
+        "end": 1767039481934
+      },
+      "skipped": false,
+      "numFailingTests": 0,
+      "openHandles": [],
+      "testResults": [
+        {
+          "failureMessages": [],
+          "failureDetails": [],
+          "numPassingAsserts": 0,
+          "duration": 1,
+          "ancestorTitles": [
+            "another test in a folder"
+          ],
+          "invocations": 1,
+          "status": "passed",
+          "fullName": "another test in a folder expects true to be true",
+          "retryReasons": [],
+          "title": "expects true to be true"
+        }
+      ],
+      "testFilePath": "src/__tests__/afolder/myCompartmentalizedTests.spec.ts",
+      "snapshot": {
+        "updated": 0,
+        "unmatched": 0,
+        "fileDeleted": false,
+        "uncheckedKeys": [],
+        "unchecked": 0,
+        "added": 0,
+        "matched": 0
+      },
+      "numPendingTests": 0,
+      "numPassingTests": 1,
+      "numTodoTests": 0
+    },
+    {
+      "leaks": false,
+      "perfStats": {
+        "runtime": 9,
+        "slow": false,
+        "start": 1767039482012,
+        "end": 1767039482021
+      },
+      "skipped": false,
+      "numFailingTests": 0,
+      "openHandles": [],
+      "testResults": [
+        {
+          "failureMessages": [],
+          "failureDetails": [],
+          "numPassingAsserts": 0,
+          "duration": 1,
+          "ancestorTitles": [
+            "div"
+          ],
+          "invocations": 1,
+          "status": "passed",
+          "fullName": "div divides 6 / 2 to equal 3",
+          "retryReasons": [],
+          "title": "divides 6 / 2 to equal 3"
+        },
+        {
+          "failureMessages": [],
+          "failureDetails": [],
+          "numPassingAsserts": 0,
+          "duration": 1,
+          "ancestorTitles": [
+            "div"
+          ],
+          "invocations": 1,
+          "status": "passed",
+          "fullName": "div divides 9 / 3 to equal 3",
+          "retryReasons": [],
+          "title": "divides 9 / 3 to equal 3"
+        },
+        {
+          "failureMessages": [],
+          "failureDetails": [],
+          "numPassingAsserts": 0,
+          "duration": 1,
+          "ancestorTitles": [
+            "div"
+          ],
+          "invocations": 1,
+          "status": "passed",
+          "fullName": "div divides 8 / 2 to equal 4",
+          "retryReasons": [],
+          "title": "divides 8 / 2 to equal 4"
+        }
+      ],
+      "testFilePath": "src/__tests__/div.spec.ts",
+      "snapshot": {
+        "updated": 0,
+        "unmatched": 0,
+        "fileDeleted": false,
+        "uncheckedKeys": [],
+        "unchecked": 0,
+        "added": 0,
+        "matched": 0
+      },
+      "numPendingTests": 0,
+      "numPassingTests": 3,
+      "numTodoTests": 0
+    },
+    {
+      "leaks": false,
+      "perfStats": {
+        "runtime": 6,
+        "slow": false,
+        "start": 1767039482080,
+        "end": 1767039482086
+      },
+      "skipped": false,
+      "numFailingTests": 1,
+      "openHandles": [],
+      "testResults": [
+        {
+          "failureMessages": [],
+          "failureDetails": [],
+          "numPassingAsserts": 0,
+          "duration": 0,
+          "ancestorTitles": [
+            "mul"
+          ],
+          "invocations": 1,
+          "status": "passed",
+          "fullName": "mul multiplies 6 * 2 to equal 12",
+          "retryReasons": [],
+          "title": "multiplies 6 * 2 to equal 12"
+        },
+        {
+          "failureMessages": [],
+          "failureDetails": [],
+          "numPassingAsserts": 0,
+          "duration": 1,
+          "ancestorTitles": [
+            "mul"
+          ],
+          "invocations": 1,
+          "status": "passed",
+          "fullName": "mul multiplies 3 * 4 to equal 12",
+          "retryReasons": [],
+          "title": "multiplies 3 * 4 to equal 12"
+        },
+        {
+          "failureMessages": [],
+          "failureDetails": [],
+          "numPassingAsserts": 0,
+          "duration": 0,
+          "ancestorTitles": [
+            "mul"
+          ],
+          "invocations": 1,
+          "status": "passed",
+          "fullName": "mul multiplies 5 * 5 to equal 25",
+          "retryReasons": [],
+          "title": "multiplies 5 * 5 to equal 25"
+        },
+        {
+          "failureMessages": [
+            "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: 30\nReceived: 25\n[string \"ReplicatedStorage.src.__tests__.mul.spec\"]:19\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+          ],
+          "failureDetails": [
+            {
+              "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: 30\nReceived: 25",
+              "__stack": "[string \"ReplicatedStorage.src.__tests__.mul.spec\"]:19\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n",
+              "name": "Error",
+              "matcherResult": {
+                "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: 30\nReceived: 25",
+                "name": "toBe",
+                "expected": 30,
+                "pass": false,
+                "actual": 25
+              },
+              "stack": "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: 30\nReceived: 25\n[string \"ReplicatedStorage.src.__tests__.mul.spec\"]:19\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+            }
+          ],
+          "numPassingAsserts": 0,
+          "duration": 1,
+          "ancestorTitles": [
+            "mul"
+          ],
+          "invocations": 1,
+          "status": "failed",
+          "fullName": "mul fails when expecting 5 * 5 to equal 30",
+          "retryReasons": [],
+          "title": "fails when expecting 5 * 5 to equal 30"
+        }
+      ],
+      "snapshot": {
+        "updated": 0,
+        "unmatched": 0,
+        "fileDeleted": false,
+        "uncheckedKeys": [],
+        "unchecked": 0,
+        "added": 0,
+        "matched": 0
+      },
+      "testFilePath": "src/__tests__/mul.spec.ts",
+      "numTodoTests": 0,
+      "numPendingTests": 0,
+      "numPassingTests": 3,
+      "failureMessage": "\u001b[1m\u001b[31m  ● mul › fails when expecting 5 * 5 to equal 30\u001b[39m\u001b[22m\n\n    \u001b[90mexpect(\u001b[39m\u001b[31mreceived\u001b[39m\u001b[90m).\u001b[39m\u001b[37mtoBe\u001b[39m\u001b[90m(\u001b[39m\u001b[32mexpected\u001b[39m\u001b[90m)\u001b[39m\u001b[90m -- Object.is equality\u001b[39m\n\n    Expected:\u001b[32m 30\u001b[39m\n    Received:\u001b[31m 25\u001b[39m\n\n\n      \u001b[90m16 |\u001b[39m \n\u001b[2m      \u001b[90m17 |\u001b[39m     it(\u001b[32m\"fails when expecting 5 * 5 to equal 30\"\u001b[39m\u001b[33m,\u001b[39m () \u001b[33m=>\u001b[39m {\u001b[22m\n\u001b[2m    \u001b[1m\u001b[31m>\u001b[39m\u001b[22m\u001b[2m \u001b[90m18 |\u001b[39m         expect(\u001b[35m5\u001b[39m \u001b[33m*\u001b[39m \u001b[35m5\u001b[39m)\u001b[33m.\u001b[39mtoBe(\u001b[35m30\u001b[39m)\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m19 |\u001b[39m     })\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m20 |\u001b[39m })\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m21 |\u001b[39m \u001b[22m\n\n      \u001b[36msrc/__tests__/mul.spec.ts\u001b[39m\u001b[90m:18\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/jest-circus/src/circus/utils.lua\u001b[39m\u001b[90m:369\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:172\u001b[39m function runExecutor\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:299\u001b[39m\n"    
+    },
+    {
+      "leaks": false,
+      "perfStats": {
+        "runtime": 6,
+        "slow": false,
+        "start": 1767039482146,
+        "end": 1767039482152
+      },
+      "skipped": false,
+      "numFailingTests": 0,
+      "openHandles": [],
+      "testResults": [
+        {
+          "failureMessages": [],
+          "failureDetails": [],
+          "numPassingAsserts": 0,
+          "duration": 0,
+          "ancestorTitles": [
+            "myModule"
+          ],
+          "invocations": 1,
+          "status": "passed",
+          "fullName": "myModule returns hello world",
+          "retryReasons": [],
+          "title": "returns hello world"
+        }
+      ],
+      "testFilePath": "src/__tests__/myModule.spec.ts",
+      "snapshot": {
+        "updated": 0,
+        "unmatched": 0,
+        "fileDeleted": false,
+        "uncheckedKeys": [],
+        "unchecked": 0,
+        "added": 0,
+        "matched": 0
+      },
+      "numPendingTests": 0,
+      "numPassingTests": 1,
+      "numTodoTests": 0
+    },
+    {
+      "leaks": false,
+      "perfStats": {
+        "runtime": 10,
+        "slow": false,
+        "start": 1767039482213,
+        "end": 1767039482223
+      },
+      "skipped": false,
+      "numFailingTests": 1,
+      "openHandles": [],
+      "testResults": [
+        {
+          "failureMessages": [],
+          "failureDetails": [],
+          "numPassingAsserts": 0,
+          "duration": 1,
+          "ancestorTitles": [
+            "sub"
+          ],
+          "invocations": 1,
+          "status": "passed",
+          "fullName": "sub subtracts 10 - 4 to equal 6",
+          "retryReasons": [],
+          "title": "subtracts 10 - 4 to equal 6"
+        },
+        {
+          "failureMessages": [],
+          "failureDetails": [],
+          "numPassingAsserts": 0,
+          "duration": 1,
+          "ancestorTitles": [
+            "sub"
+          ],
+          "invocations": 1,
+          "status": "passed",
+          "fullName": "sub subtracts 20 - 5 to equal 15",
+          "retryReasons": [],
+          "title": "subtracts 20 - 5 to equal 15"
+        },
+        {
+          "failureMessages": [],
+          "failureDetails": [],
+          "numPassingAsserts": 0,
+          "duration": 1,
+          "ancestorTitles": [
+            "sub"
+          ],
+          "invocations": 1,
+          "status": "passed",
+          "fullName": "sub subtracts 8 - 3 to equal 5",
+          "retryReasons": [],
+          "title": "subtracts 8 - 3 to equal 5"
+        },
+        {
+          "failureMessages": [
+            "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: 8\nReceived: 7\n[string \"ReplicatedStorage.src.__tests__.sub.spec\"]:19\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+          ],
+          "failureDetails": [
+            {
+              "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: 8\nReceived: 7",
+              "__stack": "[string \"ReplicatedStorage.src.__tests__.sub.spec\"]:19\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n",
+              "name": "Error",
+              "matcherResult": {
+                "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: 8\nReceived: 7",
+                "name": "toBe",
+                "expected": 8,
+                "pass": false,
+                "actual": 7
+              },
+              "stack": "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: 8\nReceived: 7\n[string \"ReplicatedStorage.src.__tests__.sub.spec\"]:19\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+            }
+          ],
+          "numPassingAsserts": 0,
+          "duration": 1,
+          "ancestorTitles": [
+            "sub"
+          ],
+          "invocations": 1,
+          "status": "failed",
+          "fullName": "sub fails when expecting 9 - 2 to equal 8",
+          "retryReasons": [],
+          "title": "fails when expecting 9 - 2 to equal 8"
+        }
+      ],
+      "snapshot": {
+        "updated": 0,
+        "unmatched": 0,
+        "fileDeleted": false,
+        "uncheckedKeys": [],
+        "unchecked": 0,
+        "added": 0,
+        "matched": 0
+      },
+      "testFilePath": "src/__tests__/sub.spec.luau",
+      "numTodoTests": 0,
+      "numPendingTests": 0,
+      "numPassingTests": 3,
+      "failureMessage": "\u001b[1m\u001b[31m  ● sub › fails when expecting 9 - 2 to equal 8\u001b[39m\u001b[22m\n\n    \u001b[90mexpect(\u001b[39m\u001b[31mreceived\u001b[39m\u001b[90m).\u001b[39m\u001b[37mtoBe\u001b[39m\u001b[90m(\u001b[39m\u001b[32mexpected\u001b[39m\u001b[90m)\u001b[39m\u001b[90m -- Object.is equality\u001b[39m\n\n    Expected:\u001b[32m 8\u001b[39m\n    Received:\u001b[31m 7\u001b[39m\n\n\n      \u001b[90m17 |\u001b[39m     end)\n\u001b[2m      \u001b[90m18 |\u001b[39m     it(\u001b[32m\"fails when expecting 9 - 2 to equal 8\"\u001b[39m\u001b[33m,\u001b[39m function()\u001b[22m\n\u001b[2m    \u001b[1m\u001b[31m>\u001b[39m\u001b[22m\u001b[2m \u001b[90m19 |\u001b[39m         expect(\u001b[35m9\u001b[39m \u001b[33m-\u001b[39m \u001b[35m2\u001b[39m)\u001b[33m.\u001b[39mtoBe(\u001b[35m8\u001b[39m)\u001b[22m\n\u001b[2m      \u001b[90m20 |\u001b[39m     end)\u001b[22m\n\u001b[2m      \u001b[90m21 |\u001b[39m end)\u001b[22m\n\u001b[2m      \u001b[90m22 |\u001b[39m \u001b[22m\n\n      \u001b[36msrc/__tests__/sub.spec.luau\u001b[39m\u001b[90m:19\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/jest-circus/src/circus/utils.lua\u001b[39m\u001b[90m:369\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:172\u001b[39m function runExecutor\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:299\u001b[39m\n"
+    },
+    {
+      "leaks": false,
+      "perfStats": {
+        "runtime": 6,
+        "slow": false,
+        "start": 1767039482279,
+        "end": 1767039482285
+      },
+      "skipped": false,
+      "numFailingTests": 1,
+      "openHandles": [],
+      "testResults": [
+        {
+          "failureMessages": [
+            "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: \"Bye, World!\"\nReceived: \"Hello, World!\"\n[string \"ReplicatedStorage.src.anothertestproject.ilovetesting.spec\"]:10\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+          ],
+          "failureDetails": [
+            {
+              "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: \"Bye, World!\"\nReceived: \"Hello, World!\"",
+              "__stack": "[string \"ReplicatedStorage.src.anothertestproject.ilovetesting.spec\"]:10\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n",
+              "name": "Error",
+              "matcherResult": {
+                "message": "expect(received).toBe(expected) -- Object.is equality\n\nExpected: \"Bye, World!\"\nReceived: \"Hello, World!\"",
+                "name": "toBe",
+                "expected": "Bye, World!",
+                "pass": false,
+                "actual": "Hello, World!"
+              },
+              "stack": "Error: expect(received).toBe(expected) -- Object.is equality\n\nExpected: \"Bye, World!\"\nReceived: \"Hello, World!\"\n[string \"ReplicatedStorage.src.anothertestproject.ilovetesting.spec\"]:10\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.JestCircus.circus.utils\"]:369\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:172 function runExecutor\n[string \"ReplicatedStorage.rbxts_include.node_modules.@rbxts-js.Promise\"]:299\n"
+            }
+          ],
+          "numPassingAsserts": 0,
+          "duration": 1,
+          "ancestorTitles": [
+            "myModule"
+          ],
+          "invocations": 1,
+          "status": "failed",
+          "fullName": "myModule fails when expecting bye world",
+          "retryReasons": [],
+          "title": "fails when expecting bye world"
+        }
+      ],
+      "snapshot": {
+        "updated": 0,
+        "unmatched": 0,
+        "fileDeleted": false,
+        "uncheckedKeys": [],
+        "unchecked": 0,
+        "added": 0,
+        "matched": 0
+      },
+      "testFilePath": "src/anothertestproject/ilovetesting.spec.ts",
+      "numTodoTests": 0,
+      "numPendingTests": 0,
+      "numPassingTests": 0,
+      "failureMessage": "\u001b[1m\u001b[31m  ● myModule › fails when expecting bye world\u001b[39m\u001b[22m\n\n    \u001b[90mexpect(\u001b[39m\u001b[31mreceived\u001b[39m\u001b[90m).\u001b[39m\u001b[37mtoBe\u001b[39m\u001b[90m(\u001b[39m\u001b[32mexpected\u001b[39m\u001b[90m)\u001b[39m\u001b[90m -- Object.is equality\u001b[39m\n\n    Expected:\u001b[32m \"Bye, World!\"\u001b[39m\n    Received:\u001b[31m \"Hello, World!\"\u001b[39m\n\n\n      \u001b[90m4 |\u001b[39m describe(\u001b[32m\"myModule\"\u001b[39m\u001b[33m,\u001b[39m () \u001b[33m=>\u001b[39m {\n\u001b[2m      \u001b[90m5 |\u001b[39m     it(\u001b[32m\"fails when expecting bye world\"\u001b[39m\u001b[33m,\u001b[39m () \u001b[33m=>\u001b[39m {\u001b[22m\n\u001b[2m    \u001b[1m\u001b[31m>\u001b[39m\u001b[22m\u001b[2m \u001b[90m6 |\u001b[39m         expect(myFunction())\u001b[33m.\u001b[39mtoBe(\u001b[32m\"Bye, World!\"\u001b[39m)\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m7 |\u001b[39m     })\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m8 |\u001b[39m })\u001b[33m;\u001b[39m\u001b[22m\n\u001b[2m      \u001b[90m9 |\u001b[39m \u001b[22m\n\n      \u001b[36msrc/anothertestproject/ilovetesting.spec.ts\u001b[39m\u001b[90m:6\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/jest-circus/src/circus/utils.lua\u001b[39m\u001b[90m:369\u001b[39m\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:172\u001b[39m function runExecutor\n      \u001b[36mnode_modules/@rbxts-js/roblox-lua-promise/lib/init.lua\u001b[39m\u001b[90m:299\u001b[39m\n"
+    }
+  ],
+  "startTime": 1767039481764,
+  "openHandles": [],
+  "numTotalTests": 18,
+  "success": false,
+  "numTotalTestSuites": 7,
+  "numRuntimeErrorTestSuites": 0,
+  "numPendingTests": 0,
+  "numTodoTests": 0,
+  "wasInterrupted": false
+}
