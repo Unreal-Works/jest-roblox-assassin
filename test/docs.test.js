@@ -87,6 +87,7 @@ Run in CI mode
                 statusText: "Not Found",
             });
 
+            jest.spyOn(console, "error").mockImplementation(() => {});
             const result = await getCliOptions();
 
             expect(result).toEqual([]);
@@ -96,6 +97,7 @@ Run in CI mode
             fs.existsSync.mockReturnValue(false);
             global.fetch.mockRejectedValue(new Error("Network error"));
 
+            jest.spyOn(console, "error").mockImplementation(() => {});
             const result = await getCliOptions();
 
             expect(result).toEqual([]);
@@ -115,7 +117,7 @@ Display verbose output
                 text: async () => mockMarkdown,
             });
             fs.writeFileSync.mockReturnValue(undefined);
-
+            jest.spyOn(console, "warn").mockImplementation(() => {});
             const result = await getCliOptions();
 
             // Should fall back to fetching
