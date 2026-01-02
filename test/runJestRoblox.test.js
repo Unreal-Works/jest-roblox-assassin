@@ -18,10 +18,16 @@ jest.unstable_mockModule("rbxluau", () => ({
                 /local jestOptions = game:GetService\("HttpService"\):JSONDecode\((.*?)\)/s
             );
             if (match) {
-                jestOptions = JSON.parse(match[1].substring(5, match[1].length - 5));
+                jestOptions = JSON.parse(
+                    match[1].substring(5, match[1].length - 5)
+                );
             }
-            
+
             let fileToUse = "demo_default_output.txt";
+
+            if (jestOptions.debug) {
+                fileToUse = "demo_default_debug.txt";
+            }
 
             if (jestOptions.passWithNoTests) {
                 fileToUse = "demo_default_passWithNoTests.txt";
@@ -97,6 +103,35 @@ describe("runJestRoblox.js", () => {
         expect(output).toContain("numPassedTests");
         expect(output).toContain("numFailedTests");
         expect(output).toContain("testResults");
+
+        consoleLogSpy.mockRestore();
+        stdOutSpy.mockRestore();
+        stdErrSpy.mockRestore();
+    });
+
+    it("should handle --debug option", async () => {
+        const buffer = [];
+        const consoleLogSpy = jest
+            .spyOn(console, "log")
+            .mockImplementation((...args) => buffer.push(...args));
+        const stdOutSpy = jest
+            .spyOn(process.stdout, "write")
+            .mockImplementation(() => {});
+        const stdErrSpy = jest
+            .spyOn(process.stderr, "write")
+            .mockImplementation(() => {});
+
+        const exitCode = await runJestRoblox({
+            place: path.join(__dirname, "dummy", "demo_place.rbxl"),
+            project: path.join(__dirname, "..", "demo", "default.project.json"),
+            tsconfig: path.join(__dirname, "..", "demo", "tsconfig.json"),
+            debug: true,
+        });
+
+        expect(exitCode).toBe(1);
+        const output = buffer.join(" ");
+        expect(output).toContain("globalConfig");
+        expect(output).toContain("version");
 
         consoleLogSpy.mockRestore();
         stdOutSpy.mockRestore();

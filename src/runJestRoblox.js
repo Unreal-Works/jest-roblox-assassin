@@ -5,12 +5,12 @@ import {
     VerboseReporter,
 } from "@jest/reporters";
 import fs from "fs";
-import path from "path";
-import { executeLuau } from "rbxluau";
-import { pathToFileURL } from "url";
 import libCoverage from "istanbul-lib-coverage";
 import libReport from "istanbul-lib-report";
 import reports from "istanbul-reports";
+import path from "path";
+import { executeLuau } from "rbxluau";
+import { pathToFileURL } from "url";
 import { ensureCache } from "./cache.js";
 import {
     discoverCompilerOptions,
@@ -466,6 +466,8 @@ async function executeLuauTest(options) {
         `luau_output_${randomHash}.log`
     );
 
+    const resultSplitMarker = `__JEST_RESULT_START__`;
+
     const luauScript = `
 local jestOptions = game:GetService("HttpService"):JSONDecode([===[${JSON.stringify(
         options
@@ -526,15 +528,14 @@ if jestOptions.showConfig or jestOptions.listTests then
     return 0
 end
 
-print("__SUCCESS_START__")
-print(success)
-print("__SUCCESS_END__")
-if runningCoverage then
-    print("__COVERAGE_START__")
-    print(game:GetService("HttpService"):JSONEncode(coverage.istanbul()))
-    print("__COVERAGE_END__")
+if resolved and type(resolved) == "table" then
+    resolved.resolveSuccess = success
+    if runningCoverage then
+        resolved.coverage = coverage.istanbul()
+    end
 end
-print("__RESULT_START__")
+
+print("${resultSplitMarker}")
 return game:GetService("HttpService"):JSONEncode(resolved)
 `;
 
@@ -572,9 +573,8 @@ return game:GetService("HttpService"):JSONEncode(resolved)
 
     if (options.debug) {
         const firstBrace = outputLog.indexOf("{");
-        const lastSuccessStart = outputLog.lastIndexOf("__SUCCESS_START__");
-        // Find the last brace before __SUCCESS_START__
-        let lastBrace = outputLog.lastIndexOf("}", lastSuccessStart);
+        const lastMarker = outputLog.lastIndexOf(resultSplitMarker);
+        let lastBrace = outputLog.lastIndexOf("}", lastMarker);
         if (lastBrace !== -1) {
             console.log(outputLog.slice(firstBrace, lastBrace + 1));
         } else {
@@ -592,61 +592,35 @@ return game:GetService("HttpService"):JSONEncode(resolved)
         };
     }
 
-    const successMatch = outputLog.match(
-        /__SUCCESS_START__\s*(true|false)\s*__SUCCESS_END__/s
-    );
-    const coverageMatch = outputLog.match(
-        /__COVERAGE_START__\s*([\s\S]*?)\s*__COVERAGE_END__/s
-    );
-    const resultMatch = outputLog.match(/__RESULT_START__\s*([\s\S]*)$/s);
-
-    if (!successMatch) {
-        throw new Error(`Failed to parse output log:\n${outputLog}`);
+    const resultMarkerSplit = outputLog.split(resultSplitMarker);
+    if (resultMarkerSplit.length < 2) {
+        throw new Error(`No result found in output log:\n${outputLog}`);
     }
 
-    const success = successMatch[1] === "true";
-    const result = resultMatch[1];
-    let coverageData = null;
-    if (coverageMatch) {
-        try {
-            coverageData = JSON.parse(coverageMatch[1]);
-        } catch (error) {
-            console.warn(`Failed to parse coverage data: ${error.message}`);
-        }
-    }
+    const [miscOutput, rawResult] = resultMarkerSplit;
 
-    const errorOutput = outputLog.split("__SUCCESS_START__")[0];
-    if (errorOutput.includes("No tests found, exiting with code")) {
-        const startIndex = errorOutput.indexOf(
+    if (miscOutput.includes("No tests found, exiting with code")) {
+        const startIndex = miscOutput.indexOf(
             "No tests found, exiting with code"
         );
-        const endIndex = errorOutput.indexOf("__SUCCESS_START__");
-        const message = errorOutput.slice(startIndex, endIndex).trim();
+        const endIndex = miscOutput.indexOf(resultMarkerSplit);
+        const message = miscOutput.slice(startIndex, endIndex).trim();
         console.log(message);
         return {
             exit: options.passWithNoTests ? 0 : 1,
         };
     }
 
-    if (!success) {
-        console.error("Luau test execution failed:\n" + errorOutput);
-        if (result) {
-            console.error("Result:\n" + result);
-        }
-    }
-    if (!result)
-        throw new Error(`No result found in output log:\n${outputLog}`);
+    if (!rawResult)
+        throw new Error(`Failed to retrieve test results:\n${outputLog}`);
 
-    const parsedResult = JSON.parse(result);
-    
-    // Attach coverage data if available
-    if (coverageData) {
-        return {
-            ...parsedResult,
-            coverage: coverageData,
-        };
-    }
-    
+    const parsedResult = JSON.parse(rawResult);
+    if (!parsedResult)
+        throw new Error(`Failed to parse test results:\n${rawResult}`);
+
+    if (!parsedResult.resolveSuccess)
+        throw new Error(`Failed to resolve test results:\n${rawResult}`);
+
     return parsedResult;
 }
 
