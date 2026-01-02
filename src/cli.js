@@ -64,7 +64,8 @@ let yargsInstance = yargs(hideBin(process.argv))
         type: "boolean",
     })
     .option("outputFile", {
-        describe: "TODO: Not yet implemented",
+        describe:
+            "Write test results to a file when the --json option is also specified. The returned JSON structure is documented in testResultsProcessor.",
         type: "string",
     })
     .option("skipExecution", {

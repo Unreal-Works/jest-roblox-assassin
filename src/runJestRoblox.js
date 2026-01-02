@@ -306,11 +306,6 @@ export default async function runJestRoblox(options) {
         parsedResults.results.success = true;
     }
 
-    if (options.json) {
-        console.log(JSON.stringify(parsedResults.results, null, 2));
-        return parsedResults.results.success ? 0 : 1;
-    }
-
     // Fix globalConfig - set rootDir to current working directory if null
     const globalConfig = {
         ...(parsedResults.globalConfig || {}),
@@ -445,6 +440,17 @@ export default async function runJestRoblox(options) {
     // Generate coverage reports if coverage data is available
     if (parsedResults.coverage) {
         await generateCoverageReports(parsedResults.coverage, options);
+    }
+
+    if (options.json) {
+        const json = JSON.stringify(parsedResults.results);
+        if (options.outputFile) {
+            fs.writeFileSync(options.outputFile, json, "utf-8");
+            console.log(`Test results written to: ${options.outputFile}`);
+        } else {
+            console.log(json);
+        }
+        return parsedResults.results.success ? 0 : 1;
     }
 
     return parsedResults.results.success ? 0 : 1;
