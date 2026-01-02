@@ -4,9 +4,10 @@ import path from "path";
 import util from "util";
 
 export class ResultRewriter {
-    constructor({ rojoProject, compilerOptions }) {
+    constructor({ rojoProject, compilerOptions, testLocationInResults }) {
         this.rojoProject = rojoProject;
         this.compilerOptions = compilerOptions;
+        this.testLocationInResults = Boolean(testLocationInResults);
         this.luauPathMap = new Map();
         const projectRoot = this.rojoProject?.root ?? process.cwd();
         this.projectRoot = projectRoot;
@@ -148,6 +149,41 @@ export class ResultRewriter {
         if (looseIndex >= 0) return looseIndex + 1;
 
         return luauLineNumber;
+    }
+
+    /**
+     * Finds the line/column for a test title within a source file.
+     * @param {string} testTitle The title of the test case.
+     * @param {string} sourcePath The path to the source file.
+     * @returns {{ line: number, column: number } | undefined} The location with 1-based line and 0-based column.
+     */
+    findTestHeaderLocation(testTitle, sourcePath) {
+        if (!testTitle || !sourcePath) return undefined;
+        const lines = this.readLines(sourcePath);
+        if (!lines.length) return undefined;
+
+        const escapedTitle = testTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const patterns = [
+            new RegExp(
+                "\\b(?:it|test|xtest|fit|ftest|xit)\\s*\\(\\s*[\"'`]" +
+                    escapedTitle +
+                    "[\"'`]",
+                "i"
+            ),
+            new RegExp("[\"'`]" + escapedTitle + "[\"'`]", "i"),
+        ];
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            for (const pattern of patterns) {
+                const match = pattern.exec(line);
+                if (match) {
+                    return { line: i + 1, column: match.index };
+                }
+            }
+        }
+
+        return undefined;
     }
 
     /**
@@ -482,9 +518,26 @@ export class ResultRewriter {
      */
     rewriteSuiteResult(suite) {
         if (!suite) return;
-        suite.testFilePath = this.formatPath(
-            this.datamodelPathToSourcePath(suite.testFilePath)
-        );
+        const sourcePath = this.datamodelPathToSourcePath(suite.testFilePath);
+        const resolvedTestFilePath = path.resolve(sourcePath);
+        suite.testFilePath = resolvedTestFilePath;
+
+        if (this.testLocationInResults && Array.isArray(suite.testResults)) {
+            for (const testResult of suite.testResults) {
+                if (!testResult || testResult.location) continue;
+                const location =
+                    this.findTestHeaderLocation(testResult.title, sourcePath) ||
+                    (sourcePath !== resolvedTestFilePath
+                        ? this.findTestHeaderLocation(
+                              testResult.title,
+                              resolvedTestFilePath
+                          )
+                        : undefined);
+                if (location) {
+                    testResult.location = location;
+                }
+            }
+        }
 
         if (suite.failureMessage) {
             let rewritten = this.rewriteStackString(suite.failureMessage);

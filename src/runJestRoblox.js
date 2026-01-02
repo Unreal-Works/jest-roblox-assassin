@@ -292,7 +292,11 @@ export default async function runJestRoblox(options) {
 
     if (parsedResults.exit !== undefined) return parsedResults.exit;
 
-    const rewriter = new ResultRewriter({ compilerOptions, rojoProject });
+    const rewriter = new ResultRewriter({
+        compilerOptions,
+        rojoProject,
+        testLocationInResults: options.testLocationInResults,
+    });
     rewriter.rewriteParsedResults(parsedResults.results);
 
     // Rewrite coverage paths if coverage data is available
@@ -344,10 +348,15 @@ export default async function runJestRoblox(options) {
                 });
             } else {
                 try {
-                    const ReporterModule = await import(reporterName);
-                    if (ReporterModule && ReporterModule.default) {
+                    // Convert absolute paths to file URLs for ESM loader compatibility
+                    let moduleToImport = reporterName;
+                    if (path.isAbsolute(reporterName)) {
+                        moduleToImport = pathToFileURL(reporterName).href;
+                    }
+                    const ReporterModule = await import(moduleToImport);
+                    if (ReporterModule) {
                         reporterConfigs.push({
-                            Reporter: ReporterModule.default,
+                            Reporter: ReporterModule.default || ReporterModule,
                             options: reporterOptions,
                         });
                     } else {

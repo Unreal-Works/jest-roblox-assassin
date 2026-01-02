@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, jest } from "@jest/globals";
-import { ResultRewriter } from "../src/rewriter.js";
+import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import fs from "fs";
 import path from "path";
+import { ResultRewriter } from "../src/rewriter.js";
 
 jest.mock("chalk", () => ({
     default: {
@@ -248,7 +248,41 @@ describe("ResultRewriter", () => {
             };
 
             rewriter.rewriteSuiteResult(suite);
-            expect(suite.testFilePath).toBe(rewriter.formatPath(sourcePath));
+            expect(suite.testFilePath).toBe(path.resolve(sourcePath));
+        });
+
+        it("should add test locations with 0-based column", () => {
+            const sourcePath = path.join(mockRootDir, "test.ts");
+            const luauPath = path.join(mockOutDir, "test.luau");
+            rewriter.modulePathMap.set("test", {
+                luauPath,
+                sourcePath,
+            });
+
+            const fileContent = [
+                "describe(\"group\", () => {",
+                "  it(\"does work\", () => {})",
+                "});",
+            ].join("\n");
+
+            fs.existsSync.mockImplementation((p) => p === sourcePath);
+            fs.readFileSync.mockImplementation((p) =>
+                p === sourcePath ? fileContent : ""
+            );
+
+            const suite = {
+                testFilePath: "test",
+                testResults: [{ title: "does work" }],
+            };
+
+            rewriter.testLocationInResults = true;
+
+            rewriter.rewriteSuiteResult(suite);
+
+            expect(suite.testResults[0].location).toEqual({
+                column: 2,
+                line: 2,
+            });
         });
     });
 
@@ -377,15 +411,14 @@ describe("ResultRewriter", () => {
 
             rewriter.rewriteParsedResults(results);
 
-            expect(rewriter.formatPath).toHaveBeenCalledTimes(2);
             expect(rewriter.datamodelPathToSourcePath).toHaveBeenCalledWith(
                 "test1"
             );
             expect(rewriter.datamodelPathToSourcePath).toHaveBeenCalledWith(
                 "test2"
             );
-            expect(suite1.testFilePath).toBe("formatted/path");
-            expect(suite2.testFilePath).toBe("formatted/path");
+            expect(suite1.testFilePath).not.toBe("formatted/path");
+            expect(suite2.testFilePath).not.toBe("formatted/path");
             expect(suite1.failureMessage).toBe("formatted rewritten error1");
             expect(suite2.failureMessage).toBe("formatted rewritten error2");
         });
