@@ -481,6 +481,8 @@ local jestOptions = game:GetService("HttpService"):JSONDecode([===[${JSON.string
 -- These options are handled in JS
 jestOptions.reporters = {}
 jestOptions.json = false
+jestOptions.watch = nil
+jestOptions.watchAll = nil
 
 local coverage
 local runCLI
