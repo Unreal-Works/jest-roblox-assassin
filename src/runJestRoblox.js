@@ -8,6 +8,9 @@ import fs from "fs";
 import path from "path";
 import { executeLuau } from "rbxluau";
 import { pathToFileURL } from "url";
+import libCoverage from "istanbul-lib-coverage";
+import libReport from "istanbul-lib-report";
+import reports from "istanbul-reports";
 import { ensureCache } from "./cache.js";
 import {
     discoverCompilerOptions,
@@ -289,9 +292,15 @@ export default async function runJestRoblox(options) {
 
     if (parsedResults.exit !== undefined) return parsedResults.exit;
 
-    new ResultRewriter({ compilerOptions, rojoProject }).rewriteParsedResults(
-        parsedResults.results
-    );
+    const rewriter = new ResultRewriter({ compilerOptions, rojoProject });
+    rewriter.rewriteParsedResults(parsedResults.results);
+
+    // Rewrite coverage paths if coverage data is available
+    if (parsedResults.coverage) {
+        parsedResults.coverage = rewriter.rewriteCoverageData(
+            parsedResults.coverage
+        );
+    }
 
     if (options.passWithNoTests && parsedResults.results.numTotalTests === 0) {
         parsedResults.results.success = true;
@@ -432,6 +441,12 @@ export default async function runJestRoblox(options) {
             );
         }
     }
+
+    // Generate coverage reports if coverage data is available
+    if (parsedResults.coverage) {
+        await generateCoverageReports(parsedResults.coverage, options);
+    }
+
     return parsedResults.results.success ? 0 : 1;
 }
 
@@ -459,8 +474,10 @@ local jestOptions = game:GetService("HttpService"):JSONDecode([===[${JSON.string
 jestOptions.reporters = {}
 jestOptions.json = false
 
+local coverage
 local runCLI
 local projects = {}
+local testFiles = {}
 for i, v in pairs(game:GetDescendants()) do
     if v.Name == "cli" and v.Parent.Name == "JestCore" and v:IsA("ModuleScript") then
         local reading = require(v)
@@ -475,6 +492,13 @@ for i, v in pairs(game:GetDescendants()) do
         if not fullName:find("rbxts_include") and not fullName:find("node_modules") then
             table.insert(projects, v.Parent)
         end
+    elseif v.Name == "coverage" and v:FindFirstChild("src") then
+        local coverageCandidate = require(v.src)
+        if coverageCandidate and coverageCandidate.instrument then
+            coverage = coverageCandidate
+        end
+    elseif v.Name:find(".spec") or v.Name:find(".test") then
+        table.insert(testFiles, v)
     end
 end
 
@@ -483,6 +507,17 @@ if not runCLI then
 end
 if #projects == 0 then
     error("Could not find any jest.config modules")
+end
+
+local runningCoverage = false
+if jestOptions.coverage or jestOptions.collectCoverage then
+    if coverage then
+        runningCoverage = true
+        table.insert(testFiles, game:GetService("ReplicatedStorage"):FindFirstChild("rbxts_include"))
+        coverage.instrument(nil, testFiles) -- TODO: support coveragePathIgnorePatterns
+    else
+        warn("Coverage requested but coverage module not found")
+    end
 end
 
 local success, resolved = runCLI(game, jestOptions, projects):await()
@@ -494,6 +529,11 @@ end
 print("__SUCCESS_START__")
 print(success)
 print("__SUCCESS_END__")
+if runningCoverage then
+    print("__COVERAGE_START__")
+    print(game:GetService("HttpService"):JSONEncode(coverage.istanbul()))
+    print("__COVERAGE_END__")
+end
 print("__RESULT_START__")
 return game:GetService("HttpService"):JSONEncode(resolved)
 `;
@@ -555,6 +595,9 @@ return game:GetService("HttpService"):JSONEncode(resolved)
     const successMatch = outputLog.match(
         /__SUCCESS_START__\s*(true|false)\s*__SUCCESS_END__/s
     );
+    const coverageMatch = outputLog.match(
+        /__COVERAGE_START__\s*([\s\S]*?)\s*__COVERAGE_END__/s
+    );
     const resultMatch = outputLog.match(/__RESULT_START__\s*([\s\S]*)$/s);
 
     if (!successMatch) {
@@ -563,6 +606,14 @@ return game:GetService("HttpService"):JSONEncode(resolved)
 
     const success = successMatch[1] === "true";
     const result = resultMatch[1];
+    let coverageData = null;
+    if (coverageMatch) {
+        try {
+            coverageData = JSON.parse(coverageMatch[1]);
+        } catch (error) {
+            console.warn(`Failed to parse coverage data: ${error.message}`);
+        }
+    }
 
     const errorOutput = outputLog.split("__SUCCESS_START__")[0];
     if (errorOutput.includes("No tests found, exiting with code")) {
@@ -586,5 +637,71 @@ return game:GetService("HttpService"):JSONEncode(resolved)
     if (!result)
         throw new Error(`No result found in output log:\n${outputLog}`);
 
-    return JSON.parse(result);
+    const parsedResult = JSON.parse(result);
+    
+    // Attach coverage data if available
+    if (coverageData) {
+        return {
+            ...parsedResult,
+            coverage: coverageData,
+        };
+    }
+    
+    return parsedResult;
+}
+
+/**
+ * Generates coverage reports using Istanbul.
+ * @param {object} coverageData The coverage data in Istanbul format.
+ * @param {object} options The CLI options containing coverageDirectory.
+ */
+async function generateCoverageReports(coverageData, options) {
+    const coverageDir = options.coverageDirectory || "coverage";
+    const coverageFile = path.join(coverageDir, "coverage-final.json");
+
+    // Create coverage directory if it doesn't exist
+    if (!fs.existsSync(coverageDir)) {
+        fs.mkdirSync(coverageDir, { recursive: true });
+    }
+
+    // Write coverage-final.json
+    fs.writeFileSync(coverageFile, JSON.stringify(coverageData, null, 2));
+
+    // Create coverage map
+    const coverageMap = libCoverage.createCoverageMap(coverageData);
+
+    // Create report context
+    const context = libReport.createContext({
+        dir: coverageDir,
+        coverageMap: coverageMap,
+        defaultSummarizer: "nested",
+    });
+
+    // Generate report formats
+    const reportFormats = [
+        "html",
+        "text",
+        "text-summary",
+        "lcov",
+        "json-summary",
+        "json",
+        "cobertura",
+    ];
+
+    for (const formatName of reportFormats) {
+        try {
+            const report = reports.create(formatName);
+            report.execute(context);
+        } catch (error) {
+            if (options.verbose) {
+                console.warn(
+                    `Failed to generate ${formatName} coverage report: ${error.message}`
+                );
+            }
+        }
+    }
+
+    if (options.verbose) {
+        console.log(`Coverage reports generated in ${coverageDir}`);
+    }
 }

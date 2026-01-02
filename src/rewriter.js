@@ -10,7 +10,7 @@ export class ResultRewriter {
         this.luauPathMap = new Map();
         const projectRoot = this.rojoProject?.root ?? process.cwd();
         this.projectRoot = projectRoot;
-        
+
         const rootDirRelative = compilerOptions?.rootDir ?? "src";
         const outDirRelative = compilerOptions?.outDir ?? "out";
         const absoluteRootDir = path.isAbsolute(rootDirRelative)
@@ -43,8 +43,14 @@ export class ResultRewriter {
                     let sourcePath;
 
                     if (absoluteOutDir) {
-                        const normalizedOutDir = absoluteOutDir.replace(/\\/g, "/");
-                        const normalizedLuau = absoluteLuauPath.replace(/\\/g, "/");
+                        const normalizedOutDir = absoluteOutDir.replace(
+                            /\\/g,
+                            "/"
+                        );
+                        const normalizedLuau = absoluteLuauPath.replace(
+                            /\\/g,
+                            "/"
+                        );
                         if (normalizedLuau.startsWith(normalizedOutDir)) {
                             const relativePath = path.relative(
                                 absoluteOutDir,
@@ -54,7 +60,11 @@ export class ResultRewriter {
                                 absoluteRootDir,
                                 relativePath
                             );
-                            if (path.basename(candidateSource).startsWith("init.")) {
+                            if (
+                                path
+                                    .basename(candidateSource)
+                                    .startsWith("init.")
+                            ) {
                                 candidateSource = path.join(
                                     path.dirname(candidateSource),
                                     "index" + path.extname(candidateSource)
@@ -154,10 +164,7 @@ export class ResultRewriter {
         if (!relativePath) {
             relativePath = filePath;
         }
-        return relativePath
-            .split(path.sep)
-            .join("/")
-            .replace(/\\/g, "/");
+        return relativePath.split(path.sep).join("/").replace(/\\/g, "/");
     }
 
     /**
@@ -522,5 +529,47 @@ export class ResultRewriter {
         for (const suite of results.testResults) {
             this.rewriteSuiteResult(suite);
         }
+    }
+
+    /**
+     * Rewrites coverage data to use source file paths instead of datamodel paths.
+     * @param {object} coverageData The coverage data.
+     * @returns {object} The rewritten coverage data.
+     */
+    rewriteCoverageData(coverageData) {
+        if (!coverageData) return coverageData;
+
+        const rewritten = {};
+        for (const [datamodelPath, coverage] of Object.entries(coverageData)) {
+            // Skip the "total" key
+            if (datamodelPath === "total") {
+                rewritten[datamodelPath] = coverage;
+                continue;
+            }
+
+            // Convert datamodel path to luau path
+            // Coverage data uses slashes, but modulePathMap uses dots
+            const normalizedPath = datamodelPath.replace(/\//g, ".");
+            let entry = this.modulePathMap.get(normalizedPath);
+
+            let finalPath;
+            if (entry?.luauPath) {
+                // Use the luau path (no source mapping for coverage)
+                finalPath = this.formatPath(entry.luauPath);
+            } else {
+                // If we couldn't find a mapping, use the original path
+                finalPath = datamodelPath;
+            }
+
+            // Clone the coverage object and update the path property
+            const rewrittenCoverage = { ...coverage };
+            if (rewrittenCoverage.path) {
+                rewrittenCoverage.path = finalPath;
+            }
+
+            rewritten[finalPath] = rewrittenCoverage;
+        }
+
+        return rewritten;
     }
 }

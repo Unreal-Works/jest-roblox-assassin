@@ -44,6 +44,10 @@ program
         "--watchAll",
         "Watch files for changes and rerun all tests when something changes. If you want to re-run only the tests that depend on the changed files, use the --watch option."
     )
+    .option(
+        "--coverage, --collectCoverage",
+        "Indicates that test coverage information should be collected and reported in the output."
+    )
     .option("--skipExecution", "development command");
 
 for (const opt of cliOptions) {
