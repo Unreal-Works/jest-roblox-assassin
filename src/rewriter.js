@@ -369,24 +369,6 @@ export class ResultRewriter {
     }
 
     /**
-     * Extends a test file path by checking for common extensions.
-     * @param {string} testFilePath The original test file path.
-     * @returns {string} The extended test file path.
-     */
-    extendTestFilePath(testFilePath) {
-        if (!testFilePath) return testFilePath;
-        const withExts = [".ts", ".tsx", ""]; // last entry preserves original
-        for (const ext of withExts) {
-            const candidate = path.join(
-                this.rojoProject.root,
-                `${testFilePath}${ext}`
-            );
-            if (fs.existsSync(candidate)) return candidate;
-        }
-        return path.join(this.rojoProject.root, testFilePath);
-    }
-
-    /**
      * Parses a stack frame from text and returns file path, line, and column.
      * @param {string} text The text to parse.
      * @returns {{ absPath: string, line: number, column: number } | undefined} The parsed frame info or undefined if not found.

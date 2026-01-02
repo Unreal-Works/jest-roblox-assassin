@@ -71,16 +71,37 @@ export default async function runJestRoblox(options) {
         options.project ? path.resolve(options.project) : undefined
     );
     const compilerOptions = discoverCompilerOptions(options.tsconfig);
+    const rewriter = new ResultRewriter({
+        compilerOptions,
+        rojoProject,
+        testLocationInResults: options.testLocationInResults,
+    });
 
     const actualStartTime = Date.now();
     let parsedResults;
 
-    if (options.showConfig || options.listTests) {
-        const result = await executeLuauTest(options);
-        if (options.showConfig) {
-            console.log(result.config);
+    if (options.showConfig) {
+        console.log((await executeLuauTest(options)).config);
+        return 0;
+    }
+
+    if (options.listTests) {
+        const result = JSON.parse(await executeLuauTest(options));
+        const reconstructed = [];
+        for (const testPath of result)
+            reconstructed.push(rewriter.datamodelPathToSourcePath(testPath));
+
+        if (options.json) {
+            const out = JSON.stringify(reconstructed);
+            if (options.outputFile) {
+                fs.writeFileSync(options.outputFile, out, "utf-8");
+            } else {
+                console.log(out);
+            }
         } else {
-            console.log(result);
+            for (const testPath of reconstructed) {
+                console.log(testPath);
+            }
         }
         return 0;
     }
@@ -292,11 +313,6 @@ export default async function runJestRoblox(options) {
 
     if (parsedResults.exit !== undefined) return parsedResults.exit;
 
-    const rewriter = new ResultRewriter({
-        compilerOptions,
-        rojoProject,
-        testLocationInResults: options.testLocationInResults,
-    });
     rewriter.rewriteParsedResults(parsedResults.results);
 
     // Rewrite coverage paths if coverage data is available
@@ -489,7 +505,7 @@ local jestOptions = game:GetService("HttpService"):JSONDecode([===[${JSON.string
     )}]===])
 -- These options are handled in JS
 jestOptions.reporters = {}
-jestOptions.json = false
+jestOptions.json = jestOptions.listTests == true
 jestOptions.watch = nil
 jestOptions.watchAll = nil
 

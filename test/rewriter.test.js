@@ -225,15 +225,6 @@ describe("ResultRewriter", () => {
         });
     });
 
-    describe("extendTestFilePath", () => {
-        it("should find existing file with .ts extension", () => {
-            fs.existsSync.mockImplementation((p) => p.endsWith(".ts"));
-
-            const result = rewriter.extendTestFilePath("test");
-            expect(result).toContain("test.ts");
-        });
-    });
-
     describe("rewriteSuiteResult", () => {
         it("should rewrite test file path", () => {
             const sourcePath = path.join(mockRootDir, "test.ts");
