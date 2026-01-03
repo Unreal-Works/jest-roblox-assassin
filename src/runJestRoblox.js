@@ -13,6 +13,7 @@ import path from "path";
 import process from "process";
 import { executeLuau } from "rbxluau";
 import { pathToFileURL } from "url";
+import { zstdDecompressSync } from "zlib";
 import { ensureCache } from "./cache.js";
 import {
     discoverCompilerOptions,
@@ -568,90 +569,79 @@ if resolved and type(resolved) == "table" then
     end
 end
 
-print("${resultSplitMarker}")
 local payload = HttpService:JSONEncode(resolved)
 local payloadSize = #payload
-if payloadSize > 4000000 then
-    -- Direct return is not possible; send to user-specified github repo
-    local repo = "${process.env.JEST_ASSASSIN_PAYLOAD_REPO ?? ""}"
-    if not repo or repo == "" then
-        error("Payload too large (" .. payloadSize .. " bytes) and no JEST_ASSASSIN_PAYLOAD_REPO specified")
-    end
-    local gh_token = "${process.env.JEST_ASSASSIN_GITHUB_TOKEN ?? ""}"
-    if not gh_token or gh_token == "" then
-        error("Payload too large (" .. payloadSize .. " bytes) and no JEST_ASSASSIN_GITHUB_TOKEN specified")
-    end
-    local fileName = "${
-        process.env.JEST_ASSASSIN_PAYLOAD_FILENAME ?? "jest_payload.json"
-    }"
-    local url = "https://api.github.com/repos/" .. repo .. "/contents/" .. fileName
 
-    -- Obtain SHA of existing file if it exists
-    local existingSha
-    local getSuccess, getResponse = pcall(function()
-        return HttpService:GetAsync(url, false, {
-            ["Authorization"] = "token " .. gh_token
-        })
-    end)
+local EncodingService = game:GetService("EncodingService")
+local bufferPayload = buffer.fromstring(payload)
 
-    if getSuccess then
-        local decoded = HttpService:JSONDecode(getResponse)
-        existingSha = decoded.sha
-    end
-
-    function to_base64(data)
-        local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-        local result = {}
-        local len = #data
-        
-        for i = 1, len, 3 do
-            local byte1 = data:byte(i)
-            local byte2 = i + 1 <= len and data:byte(i + 1) or 0
-            local byte3 = i + 2 <= len and data:byte(i + 2) or 0
-            
-            local b1 = bit32.rshift(byte1, 2)
-            local b2 = bit32.bor(bit32.lshift(bit32.band(byte1, 3), 4), bit32.rshift(byte2, 4))
-            local b3 = bit32.bor(bit32.lshift(bit32.band(byte2, 15), 2), bit32.rshift(byte3, 6))
-            local b4 = bit32.band(byte3, 63)
-            
-            table.insert(result, b:sub(b1 + 1, b1 + 1))
-            table.insert(result, b:sub(b2 + 1, b2 + 1))
-            table.insert(result, i + 1 <= len and b:sub(b3 + 1, b3 + 1) or '=')
-            table.insert(result, i + 2 <= len and b:sub(b4 + 1, b4 + 1) or '=')
-        end
-        
-        return table.concat(result)
-    end
-
-    local putPayload = {
-        message = "JestRoblox large payload upload",
-        content = to_base64(payload),
-        branch = "main",
-    }
-    if existingSha then
-        putPayload.sha = existingSha
-    end
-
-    local putSuccess, putResponse = pcall(function()
-        return game:GetService("HttpService"):RequestAsync({
-            Url = url,
-            Method = "PUT",
-            Headers = {
-                ["Authorization"] = "token " .. gh_token,
-                ["Content-Type"] = "application/json"
-            },
-            Body = HttpService:JSONEncode(putPayload)
-        })
-    end)
-    if not putSuccess then
-        error("Failed to upload large payload to GitHub: " .. putResponse)
-    end
-    if putResponse.Success ~= true then
-        error("GitHub API returned error: " .. tostring(putResponse.StatusCode) .. " - " .. tostring(putResponse.Body))
-    end
-    return "__PAYLOAD_URL_START__" .. url .. "__PAYLOAD_URL_END__"
+local compressionStartTime = os.clock()
+local compressed = EncodingService:CompressBuffer(bufferPayload, Enum.CompressionAlgorithm.Zstd, 9)
+if jestOptions.debug then
+    print("Compression took " .. ((os.clock() - compressionStartTime) * 1000) .. "ms")
 end
-return payload
+
+print("${resultSplitMarker}")
+if buffer.len(compressed) <= 4194304 then
+    return compressed
+end
+
+if jestOptions.debug then
+    print("Payload size " .. payloadSize .. " bytes exceeds 4MB, uploading to GitHub")
+end
+
+-- Direct return is not possible; send to user-specified github repo
+local repo = "${process.env.JEST_ASSASSIN_PAYLOAD_REPO ?? ""}"
+if not repo or repo == "" then
+    error("Payload too large (" .. payloadSize .. " bytes) and no JEST_ASSASSIN_PAYLOAD_REPO specified")
+end
+local gh_token = "${process.env.JEST_ASSASSIN_GITHUB_TOKEN ?? ""}"
+if not gh_token or gh_token == "" then
+    error("Payload too large (" .. payloadSize .. " bytes) and no JEST_ASSASSIN_GITHUB_TOKEN specified")
+end
+local fileName = "${
+        process.env.JEST_ASSASSIN_PAYLOAD_FILENAME ?? "jest_payload"
+    }"
+local url = "https://api.github.com/repos/" .. repo .. "/contents/" .. fileName
+
+-- Obtain SHA of existing file if it exists
+local existingSha
+local getSuccess, getResponse = pcall(function()
+    return HttpService:GetAsync(url, false, {
+        ["Authorization"] = "token " .. gh_token
+    })
+end)
+if getSuccess then
+    existingSha = HttpService:JSONDecode(getResponse).sha
+end
+
+local putPayload = {
+    message = "JestRoblox large payload upload",
+    content = bufferPayload,
+    branch = "main",
+}
+if existingSha then
+    putPayload.sha = existingSha
+end
+
+local putSuccess, putResponse = pcall(function()
+    return game:GetService("HttpService"):RequestAsync({
+        Url = url,
+        Method = "PUT",
+        Headers = {
+            ["Authorization"] = "token " .. gh_token,
+            ["Content-Type"] = "application/json"
+        },
+        Body = HttpService:JSONEncode(putPayload)
+    })
+end)
+if not putSuccess then
+    error("Failed to upload large payload to GitHub: " .. putResponse)
+end
+if putResponse.Success ~= true then
+    error("GitHub API returned error: " .. tostring(putResponse.StatusCode) .. " - " .. tostring(putResponse.Body))
+end
+return "__PAYLOAD_URL_START__" .. url .. "__PAYLOAD_URL_END__"
 `;
 
     const luauExitCode = await executeLuau(luauScript, {
@@ -682,6 +672,10 @@ return payload
     }
 
     if (options.debug) {
+        console.log(outputLog);
+    }
+
+    if (options.showConfig) {
         const firstBrace = outputLog.indexOf("{");
         const lastMarker = outputLog.lastIndexOf(resultSplitMarker);
         // Find the last brace BEFORE the result marker, not the last brace in the entire output
@@ -692,28 +686,11 @@ return payload
                 break;
             }
         }
-        if (lastBrace !== -1 && firstBrace !== -1) {
-            console.log(outputLog.slice(firstBrace, lastBrace + 1));
-        } else {
-            console.warn(
-                `Failed to parse debug output log at ${luauOutputPath}`
-            );
-        }
-    }
-
-    if (options.showConfig) {
-        const firstBrace = outputLog.indexOf("{");
-        const lastMarker = outputLog.lastIndexOf(resultSplitMarker);
-        // Find the last brace BEFORE the result marker
-        let lastBrace = -1;
-        for (let i = lastMarker - 1; i >= 0; i--) {
-            if (outputLog[i] === "}") {
-                lastBrace = i;
-                break;
-            }
-        }
         return {
-            config: JSON.parse(outputLog.slice(firstBrace, lastBrace + 1)),
+            config:
+                lastBrace !== -1 && firstBrace !== -1
+                    ? outputLog.slice(firstBrace, lastBrace + 1)
+                    : null,
         };
     }
 
@@ -788,9 +765,15 @@ return payload
     if (!jestPayloadRaw)
         throw new Error(`Failed to retrieve test results:\n${outputLog}`);
 
-    const jestPayload = JSON.parse(jestPayloadRaw);
+    let jestPayload = JSON.parse(jestPayloadRaw);
     if (!jestPayload)
         throw new Error(`Failed to parse test results:\n${jestPayloadRaw}`);
+
+    if (jestPayload.t === "buffer") {
+        const bufferData = Buffer.from(jestPayload.base64, "base64");
+        jestPayload = zstdDecompressSync(bufferData).toString("utf-8");
+        jestPayload = JSON.parse(jestPayload);
+    }
 
     if (!jestPayload.resolveSuccess)
         throw new Error(`Failed to resolve test results:\n${jestPayloadRaw}`);
