@@ -16,7 +16,7 @@ jestrbx is a CLI tool for running Jest-style tests against Roblox places, wrappi
 ## Getting Started
 
 ### Prerequisites
-- Node.js (v16+ recommended)
+- Node.js v22+ (recommended v24+)
 - roblox-ts and Rojo (for TypeScript workflows)
 
 ### Installation
