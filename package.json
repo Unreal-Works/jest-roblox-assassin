@@ -25,7 +25,7 @@
         "istanbul-lib-coverage": "^3.2.2",
         "istanbul-lib-report": "^3.0.1",
         "istanbul-reports": "^3.2.0",
-        "rbxluau": "^1.7.0",
+        "rbxluau": "^2.0.0",
         "yargs": "^18.0.0"
     },
     "devDependencies": {

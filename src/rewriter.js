@@ -503,6 +503,16 @@ export class ResultRewriter {
         const sourcePath = this.datamodelPathToSourcePath(suite.testFilePath);
         const resolvedTestFilePath = path.resolve(sourcePath);
         suite.testFilePath = resolvedTestFilePath;
+        suite.name = resolvedTestFilePath;
+
+        let overallPassed = true;
+        for (const testResult of suite.testResults || []) {
+            if (testResult.status === "failed") {
+                overallPassed = false;
+                break;
+            }
+        }
+        suite.status = overallPassed ? "passed" : "failed";
 
         if (this.testLocationInResults && Array.isArray(suite.testResults)) {
             for (const testResult of suite.testResults) {
@@ -553,6 +563,10 @@ export class ResultRewriter {
 
             suite.failureMessage = this.formatFailureMessage(rewritten);
         }
+
+        // forward compatibility with Jest 30+
+        suite.message ??= suite.failureMessage ?? "";
+        suite.assertionResults ??= suite.testResults;
     }
 
     /**
@@ -595,6 +609,7 @@ export class ResultRewriter {
                 // If we couldn't find a mapping, use the original path
                 finalPath = datamodelPath;
             }
+            finalPath = path.resolve(finalPath);
 
             // Clone the coverage object and update the path property
             const rewrittenCoverage = { ...coverage };

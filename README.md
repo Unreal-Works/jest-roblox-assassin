@@ -10,6 +10,7 @@ jestrbx is a CLI tool for running Jest-style tests against Roblox places, wrappi
 - Integrates with roblox-ts, Rojo, and standard TypeScript workflows
 - Handles source mapping for .ts, .tsx, .lua, and .luau files
 - Filters tests by name or path
+- Supports coverage reporting through `--coverage` (see below for setup)
 - Supports parallel execution through `--maxWorkers`
 
 ## Getting Started
@@ -32,25 +33,34 @@ Run tests against a Roblox place file:
 npx jestrbx --place path/to/place.rbxl
 ```
 
-#### Common CLI Options
-- `--place <file>`: Path to the Roblox place file (required)
-- `--project <dir>`: Path to the Rojo project file (optional)
-- `--config <file>`: Path to a Jest config file. This is usually used to specify reporter options (optional)
-- `--testNamePattern <pattern>`: Filter tests by name
-- `--reporters <reporter>`: Use custom or built-in reporters
-- `--maxWorkers <num>`: Number of worker threads to use for parallel test execution
-
 For a full list of options, run:
 
 ```sh
 npx jestrbx --help
 ```
 
+### Cloud Execution
+It's recommended to run tests through Roblox Open Cloud. Create a `.env` file with a `ROBLOSECURITY` field:
+```
+ROBLOSECURITY=your_roblosecurity_cookie_here
+# or if you want to load balance across multiple accounts:
+ROBLOSECURITY=cookie1,cookie2,cookie3
+```
+More information about setting up the `ROBLOSECURITY` variable can be found here: https://github.com/Unreal-Works/roblox-luau-execute
+
+### Coverage
+Coverage reporting requires a valid coverage instrumentation library:
+- Wally: https://wally.run/package/evilbocchi/roblox-coverage
+- roblox-ts: `npm i @rbxts/coverage`
+
+To enable coverage reporting, use the `--coverage` flag:
+```sh
+npx jestrbx --place path/to/place.rbxl --coverage
+```
+
+
 ### Example Project
-See the `demo/` directory for a sample roblox-ts project with Jest specs:
-- `demo/src/jest.config.ts`: Jest config
-- `demo/src/setup.luau`: Setup script
-- `demo/src/__tests__/`: Test specs
+See the `demo/` directory for a sample roblox-ts project with Jest tests configured.
 
 Build and test with:
 

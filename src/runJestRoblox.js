@@ -372,7 +372,7 @@ export default async function runJestRoblox(options) {
                     const ReporterModule = await import(moduleToImport);
                     if (ReporterModule) {
                         reporterConfigs.push({
-                            Reporter: ReporterModule.default || ReporterModule,
+                            Reporter: ReporterModule.default ?? ReporterModule,
                             options: reporterOptions,
                         });
                     } else {
@@ -468,6 +468,7 @@ export default async function runJestRoblox(options) {
     }
 
     if (options.json) {
+        parsedResults.results.coverageMap = parsedResults.coverage;
         const json = JSON.stringify(parsedResults.results);
         if (options.outputFile) {
             fs.writeFileSync(options.outputFile, json, "utf-8");
