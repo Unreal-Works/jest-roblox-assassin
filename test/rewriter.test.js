@@ -158,8 +158,8 @@ describe("ResultRewriter", () => {
                 "ReplicatedStorage.src.test",
                 2
             );
-            expect(result).toContain("test.ts");
-            expect(result).toContain(":2");
+            expect(result.file).toBe("\\workspace\\project\\src\\test.ts");
+            expect(result.line).toBe(2);
         });
     });
 
@@ -251,8 +251,8 @@ describe("ResultRewriter", () => {
             });
 
             const fileContent = [
-                "describe(\"group\", () => {",
-                "  it(\"does work\", () => {})",
+                'describe("group", () => {',
+                '  it("does work", () => {})',
                 "});",
             ].join("\n");
 
