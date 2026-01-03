@@ -40,7 +40,7 @@ let yargsInstance = yargs(hideBin(process.argv))
         type: "string",
     })
     .option("maxWorkers", {
-        describe: "maximum number of parallel workers to use",
+        describe: "EXPERIMENTAL: maximum number of parallel workers to use",
         type: "number",
     })
     .option("testLocationInResults", {
