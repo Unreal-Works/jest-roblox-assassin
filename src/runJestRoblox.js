@@ -8,7 +8,9 @@ import fs from "fs";
 import libCoverage from "istanbul-lib-coverage";
 import libReport from "istanbul-lib-report";
 import reports from "istanbul-reports";
+import fetch from "node-fetch";
 import path from "path";
+import process from "process";
 import { executeLuau } from "rbxluau";
 import { pathToFileURL } from "url";
 import { ensureCache } from "./cache.js";
@@ -389,18 +391,10 @@ export default async function runJestRoblox(options) {
         }
     } else {
         // Default reporters
-        if (options.verbose) {
-            reporterConfigs.push({
-                Reporter: VerboseReporter,
-                options: undefined,
-            });
-        } else {
-            reporterConfigs.push({
-                Reporter: DefaultReporter,
-                options: undefined,
-            });
-        }
-
+        reporterConfigs.push({
+            Reporter: options.verbose ? VerboseReporter : DefaultReporter,
+            options: undefined,
+        });
         reporterConfigs.push({ Reporter: SummaryReporter, options: undefined });
     }
 
@@ -475,6 +469,10 @@ export default async function runJestRoblox(options) {
         } else {
             console.log(json);
         }
+        // Handle early exit signals (e.g., "No tests found" with passWithNoTests)
+        if (parsedResults.exit !== undefined) {
+            return parsedResults.exit;
+        }
         return parsedResults.results.success ? 0 : 1;
     }
 
@@ -499,9 +497,8 @@ async function executeLuauTest(options) {
     const resultSplitMarker = `__JEST_RESULT_START__`;
 
     const luauScript = `
-local jestOptions = game:GetService("HttpService"):JSONDecode([===[${JSON.stringify(
-        options
-    )}]===])
+local HttpService = game:GetService("HttpService")
+local jestOptions = HttpService:JSONDecode([===[${JSON.stringify(options)}]===])
 -- These options are handled in JS
 jestOptions.reporters = {}
 jestOptions.json = jestOptions.listTests == true
@@ -543,6 +540,10 @@ if #projects == 0 then
     error("Could not find any jest.config modules")
 end
 
+pcall(function()
+    settings().Studio.ScriptTimeoutLength = -1 -- Disable script timeout
+end)
+
 local runningCoverage = false
 if jestOptions.coverage or jestOptions.collectCoverage then
     if coverage then
@@ -568,7 +569,89 @@ if resolved and type(resolved) == "table" then
 end
 
 print("${resultSplitMarker}")
-return game:GetService("HttpService"):JSONEncode(resolved)
+local payload = HttpService:JSONEncode(resolved)
+local payloadSize = #payload
+if payloadSize > 4000000 then
+    -- Direct return is not possible; send to user-specified github repo
+    local repo = "${process.env.JEST_ASSASSIN_PAYLOAD_REPO ?? ""}"
+    if not repo or repo == "" then
+        error("Payload too large (" .. payloadSize .. " bytes) and no JEST_ASSASSIN_PAYLOAD_REPO specified")
+    end
+    local gh_token = "${process.env.JEST_ASSASSIN_GITHUB_TOKEN ?? ""}"
+    if not gh_token or gh_token == "" then
+        error("Payload too large (" .. payloadSize .. " bytes) and no JEST_ASSASSIN_GITHUB_TOKEN specified")
+    end
+    local fileName = "${
+        process.env.JEST_ASSASSIN_PAYLOAD_FILENAME ?? "jest_payload.json"
+    }"
+    local url = "https://api.github.com/repos/" .. repo .. "/contents/" .. fileName
+
+    -- Obtain SHA of existing file if it exists
+    local existingSha
+    local getSuccess, getResponse = pcall(function()
+        return HttpService:GetAsync(url, false, {
+            ["Authorization"] = "token " .. gh_token
+        })
+    end)
+
+    if getSuccess then
+        local decoded = HttpService:JSONDecode(getResponse)
+        existingSha = decoded.sha
+    end
+
+    function to_base64(data)
+        local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+        local result = {}
+        local len = #data
+        
+        for i = 1, len, 3 do
+            local byte1 = data:byte(i)
+            local byte2 = i + 1 <= len and data:byte(i + 1) or 0
+            local byte3 = i + 2 <= len and data:byte(i + 2) or 0
+            
+            local b1 = bit32.rshift(byte1, 2)
+            local b2 = bit32.bor(bit32.lshift(bit32.band(byte1, 3), 4), bit32.rshift(byte2, 4))
+            local b3 = bit32.bor(bit32.lshift(bit32.band(byte2, 15), 2), bit32.rshift(byte3, 6))
+            local b4 = bit32.band(byte3, 63)
+            
+            table.insert(result, b:sub(b1 + 1, b1 + 1))
+            table.insert(result, b:sub(b2 + 1, b2 + 1))
+            table.insert(result, i + 1 <= len and b:sub(b3 + 1, b3 + 1) or '=')
+            table.insert(result, i + 2 <= len and b:sub(b4 + 1, b4 + 1) or '=')
+        end
+        
+        return table.concat(result)
+    end
+
+    local putPayload = {
+        message = "JestRoblox large payload upload",
+        content = to_base64(payload),
+        branch = "main",
+    }
+    if existingSha then
+        putPayload.sha = existingSha
+    end
+
+    local putSuccess, putResponse = pcall(function()
+        return game:GetService("HttpService"):RequestAsync({
+            Url = url,
+            Method = "PUT",
+            Headers = {
+                ["Authorization"] = "token " .. gh_token,
+                ["Content-Type"] = "application/json"
+            },
+            Body = HttpService:JSONEncode(putPayload)
+        })
+    end)
+    if not putSuccess then
+        error("Failed to upload large payload to GitHub: " .. putResponse)
+    end
+    if putResponse.Success ~= true then
+        error("GitHub API returned error: " .. tostring(putResponse.StatusCode) .. " - " .. tostring(putResponse.Body))
+    end
+    return "__PAYLOAD_URL_START__" .. url .. "__PAYLOAD_URL_END__"
+end
+return payload
 `;
 
     const luauExitCode = await executeLuau(luauScript, {
@@ -601,8 +684,15 @@ return game:GetService("HttpService"):JSONEncode(resolved)
     if (options.debug) {
         const firstBrace = outputLog.indexOf("{");
         const lastMarker = outputLog.lastIndexOf(resultSplitMarker);
-        let lastBrace = outputLog.lastIndexOf("}", lastMarker);
-        if (lastBrace !== -1) {
+        // Find the last brace BEFORE the result marker, not the last brace in the entire output
+        let lastBrace = -1;
+        for (let i = lastMarker - 1; i >= 0; i--) {
+            if (outputLog[i] === "}") {
+                lastBrace = i;
+                break;
+            }
+        }
+        if (lastBrace !== -1 && firstBrace !== -1) {
             console.log(outputLog.slice(firstBrace, lastBrace + 1));
         } else {
             console.warn(
@@ -613,7 +703,15 @@ return game:GetService("HttpService"):JSONEncode(resolved)
 
     if (options.showConfig) {
         const firstBrace = outputLog.indexOf("{");
-        const lastBrace = outputLog.lastIndexOf("}");
+        const lastMarker = outputLog.lastIndexOf(resultSplitMarker);
+        // Find the last brace BEFORE the result marker
+        let lastBrace = -1;
+        for (let i = lastMarker - 1; i >= 0; i--) {
+            if (outputLog[i] === "}") {
+                lastBrace = i;
+                break;
+            }
+        }
         return {
             config: JSON.parse(outputLog.slice(firstBrace, lastBrace + 1)),
         };
@@ -623,32 +721,81 @@ return game:GetService("HttpService"):JSONEncode(resolved)
     if (resultMarkerSplit.length < 2) {
         throw new Error(`No result found in output log:\n${outputLog}`);
     }
+    const [miscOutput, luauReturnRaw] = resultMarkerSplit;
 
-    const [miscOutput, rawResult] = resultMarkerSplit;
+    let jestPayloadRaw;
+    const payloadUrlMatch = luauReturnRaw.match(
+        /__PAYLOAD_URL_START__(.+?)__PAYLOAD_URL_END__/
+    );
+    const payloadUrl = payloadUrlMatch ? payloadUrlMatch[1] : null;
+    if (payloadUrl) {
+        // Fetch payload from GitHub
+        const gh_token = process.env.JEST_ASSASSIN_GITHUB_TOKEN;
+        if (!gh_token) {
+            throw new Error(
+                "Payload too large; JEST_ASSASSIN_GITHUB_TOKEN not specified"
+            );
+        }
+        const payloadUrlResponse = await fetch(payloadUrl, {
+            headers: {
+                Authorization: `token ${gh_token}`,
+            },
+        });
+        if (!payloadUrlResponse.ok)
+            throw new Error(
+                `Failed to fetch large payload from GitHub: ${payloadUrlResponse.status} ${payloadUrlResponse.statusText}`
+            );
+
+        const gitUrl = (await payloadUrlResponse.json()).git_url;
+        if (!gitUrl)
+            throw new Error(
+                `Invalid response from GitHub when fetching payload: ${await payloadUrlResponse.text()}`
+            );
+
+        const gitResponse = await fetch(gitUrl, {
+            headers: {
+                Authorization: `token ${gh_token}`,
+            },
+        });
+        if (!gitResponse.ok)
+            throw new Error(
+                `Failed to fetch large payload content from GitHub: ${gitResponse.status} ${gitResponse.statusText}`
+            );
+
+        const data = await gitResponse.json();
+        if (!data.content)
+            throw new Error(
+                `Invalid content response from GitHub when fetching payload: ${await gitResponse.text()}`
+            );
+
+        jestPayloadRaw = Buffer.from(data.content, "base64").toString("utf-8");
+    } else {
+        jestPayloadRaw = luauReturnRaw;
+    }
 
     if (miscOutput.includes("No tests found, exiting with code")) {
         const startIndex = miscOutput.indexOf(
             "No tests found, exiting with code"
         );
-        const endIndex = miscOutput.indexOf(resultMarkerSplit);
-        const message = miscOutput.slice(startIndex, endIndex).trim();
+        // The marker is not in miscOutput (it was already split off), so just use the end of miscOutput
+        const message = miscOutput.slice(startIndex).trim();
         console.log(message);
         return {
             exit: options.passWithNoTests ? 0 : 1,
         };
     }
 
-    if (!rawResult)
+    if (!jestPayloadRaw)
         throw new Error(`Failed to retrieve test results:\n${outputLog}`);
 
-    const parsedResult = JSON.parse(rawResult);
-    if (!parsedResult)
-        throw new Error(`Failed to parse test results:\n${rawResult}`);
+    const jestPayload = JSON.parse(jestPayloadRaw);
+    if (!jestPayload)
+        throw new Error(`Failed to parse test results:\n${jestPayloadRaw}`);
 
-    if (!parsedResult.resolveSuccess)
-        throw new Error(`Failed to resolve test results:\n${rawResult}`);
+    if (!jestPayload.resolveSuccess)
+        throw new Error(`Failed to resolve test results:\n${jestPayloadRaw}`);
 
-    return parsedResult;
+    return jestPayload;
 }
 
 /**

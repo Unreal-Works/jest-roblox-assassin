@@ -158,7 +158,7 @@ describe("ResultRewriter", () => {
                 "ReplicatedStorage.src.test",
                 2
             );
-            expect(result.file).toBe("\\workspace\\project\\src\\test.ts");
+            expect(result.file).toBe(sourcePath);
             expect(result.line).toBe(2);
         });
     });
