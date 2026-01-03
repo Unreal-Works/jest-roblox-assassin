@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 
+import chokidar from "chokidar";
 import dotenv from "dotenv";
+import path from "path";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
+import { findPlaceFile } from "./discovery.js";
 import { getCliOptions } from "./docs.js";
 import runJestRoblox from "./runJestRoblox.js";
 
@@ -52,11 +55,11 @@ let yargsInstance = yargs(hideBin(process.argv))
         alias: "collectCoverage",
     })
     .option("watch", {
-        describe: "TODO: Not yet implemented",
+        describe: "Alias of watchAll. Watches the place file and reruns tests on changes.",
         type: "boolean",
     })
     .option("watchAll", {
-        describe: "TODO: Not yet implemented",
+        describe: "Watches the place file and reruns tests on changes.",
         type: "boolean",
     })
     .option("useStderr", {
@@ -64,12 +67,9 @@ let yargsInstance = yargs(hideBin(process.argv))
         type: "boolean",
     })
     .option("outputFile", {
-        describe: "Write test results to a file when the --json option is also specified. The returned JSON structure is documented in testResultsProcessor.",
+        describe:
+            "Write test results to a file when the --json option is also specified. The returned JSON structure is documented in testResultsProcessor.",
         type: "string",
-    })
-    .option("skipExecution", {
-        describe: "development command",
-        type: "boolean",
     });
 
 // Add dynamically fetched CLI options
@@ -114,9 +114,106 @@ const args = await yargsInstance
 // Extract testPathPattern from positional args
 const [testPathPattern] = args._;
 
-process.exit(
-    await runJestRoblox({
-        ...args,
-        testPathPattern,
-    })
+// watch is a compat alias for watchAll in this tool
+if (args.watch && !args.watchAll) {
+    args.watchAll = true;
+}
+
+const watchMode = Boolean(args.watchAll);
+const resolvedPlace = watchMode ? args.place ?? findPlaceFile() : args.place;
+
+if (watchMode && !resolvedPlace) {
+    console.error(
+        "Watch mode requires a --place file or a discoverable place in the current workspace."
+    );
+    process.exit(1);
+}
+
+const absolutePlace = resolvedPlace ? path.resolve(resolvedPlace) : undefined;
+
+const runOnce = async () => {
+    try {
+        return await runJestRoblox({
+            ...args,
+            place: absolutePlace ?? args.place,
+            testPathPattern,
+        });
+    } catch (error) {
+        console.error(error?.stack || error?.message || String(error));
+        return 1;
+    }
+};
+
+if (!watchMode) {
+    process.exit(await runOnce());
+}
+
+let running = false;
+let pending = false;
+let lastExitCode = 0;
+const DEBOUNCE_MS = 2000;
+let debounceTimer = null;
+let lastReason = null;
+
+const triggerRun = async (reason) => {
+    if (running) {
+        pending = true;
+        return;
+    }
+
+    running = true;
+    if (reason) {
+        console.log(`\nChange detected (${reason}). Running tests...`);
+    }
+
+    lastExitCode = await runOnce();
+    running = false;
+
+    if (pending) {
+        pending = false;
+        await triggerRun();
+    }
+};
+
+const scheduleRun = (reason) => {
+    lastReason = reason ?? lastReason;
+    if (debounceTimer) {
+        clearTimeout(debounceTimer);
+    }
+    debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        triggerRun(lastReason);
+    }, DEBOUNCE_MS);
+};
+
+console.log(
+    `Watching ${path.relative(process.cwd(), absolutePlace)} for changes. Press Ctrl+C to exit.`
 );
+
+const watcher = chokidar.watch(absolutePlace, { ignoreInitial: true });
+
+watcher.on("all", (event, changedPath) => {
+    if (event === "change" || event === "add" || event === "unlink") {
+        const reason = changedPath
+            ? path.relative(process.cwd(), changedPath)
+            : event;
+        scheduleRun(reason);
+    }
+});
+
+watcher.on("error", (error) => {
+    console.error(`Watcher error: ${error?.message || error}`);
+});
+
+await triggerRun("initial run");
+
+const cleanup = () => {
+    watcher.close().catch?.(() => {});
+    if (debounceTimer) {
+        clearTimeout(debounceTimer);
+    }
+    process.exit(lastExitCode);
+};
+
+process.on("SIGINT", cleanup);
+process.on("SIGTERM", cleanup);

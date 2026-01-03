@@ -488,10 +488,9 @@ export default async function runJestRoblox(options) {
  */
 async function executeLuauTest(options) {
     const cachePath = ensureCache();
-    const randomHash =
-        options.debug || options.skipExecution
-            ? "debug"
-            : Math.random().toString(36).substring(2, 8);
+    const randomHash = options.debug
+        ? "debug"
+        : Math.random().toString(36).substring(2, 8);
     const luauOutputPath = path.join(
         cachePath,
         `luau_output_${randomHash}.log`
@@ -572,20 +571,15 @@ print("${resultSplitMarker}")
 return game:GetService("HttpService"):JSONEncode(resolved)
 `;
 
-    let luauExitCode;
-    if (options.skipExecution) {
-        luauExitCode = 0;
-    } else {
-        luauExitCode = await executeLuau(luauScript, {
-            place: options.place,
-            silent: true,
-            exit: false,
-            out: luauOutputPath,
-        });
-    }
+    const luauExitCode = await executeLuau(luauScript, {
+        place: options.place,
+        silent: true,
+        exit: false,
+        out: luauOutputPath,
+    });
 
     const outputLog = fs.readFileSync(luauOutputPath, "utf-8");
-    if (!options.debug && !options.skipExecution) {
+    if (!options.debug) {
         // Clean up Luau output file
         try {
             fs.unlinkSync(luauOutputPath);
