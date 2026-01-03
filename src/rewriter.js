@@ -152,6 +152,36 @@ export class ResultRewriter {
     }
 
     /**
+     * Finds the matcher column for an expectation on a line. Falls back to the start of `expect`.
+     * @param {string} lineText The source line text.
+     * @returns {number} The 1-based column index.
+     */
+    findExpectationColumn(lineText) {
+        if (!lineText) return 1;
+
+        const expectIndex = lineText.search(/\bexpect\s*\(/);
+        if (expectIndex === -1) return 1;
+
+        // Look for the last matcher call after the expect expression to cover any matcher name.
+        const afterExpect = lineText.slice(expectIndex);
+        const matcherRegex = /\.\s*([A-Za-z_$][\w$]*)\s*(?=\()/g;
+        let matcher;
+        let match;
+        while ((match = matcherRegex.exec(afterExpect)) !== null) {
+            matcher = match;
+        }
+
+        if (!matcher) {
+            return expectIndex + 1;
+        }
+
+        const matcherName = matcher[1];
+        const matcherNameOffset =
+            matcher.index + matcher[0].indexOf(matcherName);
+        return expectIndex + matcherNameOffset + 1;
+    }
+
+    /**
      * Finds the line/column for a test title within a source file.
      * @param {string} testTitle The title of the test case.
      * @param {string} sourcePath The path to the source file.
@@ -207,7 +237,7 @@ export class ResultRewriter {
      * Maps a datamodel stack frame to its source location.
      * @param {string} datamodelPath The path in the datamodel.
      * @param {number} lineNumber The line number in the datamodel file.
-     * @returns {string | undefined} The mapped source location as "path:line" or undefined if not found.
+     * @returns {{ line: number, column: number, file: string } | undefined} The mapped location.
      */
     mapDatamodelFrame(datamodelPath, lineNumber) {
         const normalizedPath = datamodelPath.replace(/\\/g, "/");
@@ -227,19 +257,27 @@ export class ResultRewriter {
             entry = this.luauPathMap.get(relativeToRoot);
         }
         if (!entry) return undefined;
+        const absoluteLuauPath =
+            entry.absoluteLuauPath ?? path.resolve(entry.luauPath);
         const mappedLine = this.findSourceLine(
-            entry.absoluteLuauPath,
-            entry.sourcePath,
+            absoluteLuauPath,
+            entry.sourcePath ?? absoluteLuauPath,
             lineNumber
         );
-        const displayPath = entry.sourcePath
-            ? this.formatPath(entry.sourcePath)
-            : entry.luauPath;
-        return `${displayPath}:${mappedLine}`;
+        const sourceForColumn = entry.sourcePath ?? absoluteLuauPath;
+        const sourceLines = this.readLines(sourceForColumn);
+        const lineText = sourceLines[mappedLine - 1] || "";
+        const column = this.findExpectationColumn(lineText);
+
+        return {
+            line: mappedLine,
+            column,
+            file: sourceForColumn,
+        };
     }
 
     /**
-     * Formats failure messages with syntax highlighting and colors.
+     * Formats `suite.failureMessage` text with colors for terminal output.
      * @param {string} text The failure message text.
      * @returns {string} The formatted failure message.
      */
@@ -293,12 +331,13 @@ export class ResultRewriter {
      * @param {string} value The stack string to rewrite.
      * @returns {string} The rewritten stack string.
      */
-    rewriteStackString(value) {
+    rewriteStackString(value, options = {}) {
         if (!value) return value;
+        const { absolutePaths = false } = options;
 
         // Try to find matches in modulePathMap
         const pattern =
-            /((?:[\w@.\/\\-]*[\/\.\\][\w@.\/\\-]+)):(\d+)(?::(\d+))?/g;
+            /((?:[\w@.\/\\-]*[\/.\\][\w@.\/\\-]+)):(\d+)(?::(\d+))?/g;
         let match;
         let rewritten = value;
         const processed = new Set();
@@ -309,11 +348,79 @@ export class ResultRewriter {
             processed.add(fullMatch);
             const mapped = this.mapDatamodelFrame(filePart, lineNumber);
             if (mapped) {
-                rewritten = rewritten.split(fullMatch).join(mapped);
+                const filePath = absolutePaths
+                    ? path.resolve(mapped.file)
+                    : this.formatPath(mapped.file);
+                rewritten = rewritten
+                    .split(fullMatch)
+                    .join(`${filePath}:${mapped.line}:${mapped.column}`);
             }
         }
 
         return rewritten;
+    }
+
+    /**
+     * Rewrites `suite.testResults[].failureMessages` entries.
+     * @param {Array<string>} messages The failure messages array.
+     * @returns {Array<string>} The rewritten messages array.
+     */
+    rewriteFailureMessages(messages) {
+        if (!Array.isArray(messages)) return messages;
+
+        const rewriteFailureMessage = (text) => {
+            if (!text) return text;
+
+            const rewritten = this.rewriteStackString(text, {
+                absolutePaths: true,
+            });
+
+            const lines = rewritten.split(/\r?\n/);
+            const resultLines = [];
+
+            for (const rawLine of lines) {
+                if (!rawLine.trim()) continue;
+
+                // Strip Luau [string "..."] wrappers if present
+                const strippedLine = rawLine.replace(
+                    /^\[string\s+"(.+?)"\]\s*/i,
+                    "$1"
+                );
+
+                const stackMatch = /^(.*):(\d+)(?::(\d+))?(?:\s|$)/.exec(
+                    strippedLine
+                );
+
+                if (stackMatch) {
+                    const [, filePart, lineStr, colStr] = stackMatch;
+                    const lineNumber = Number(lineStr);
+                    const colNumber = Number(colStr || "1");
+                    const mapped = this.mapDatamodelFrame(filePart, lineNumber);
+                    const absFile = mapped
+                        ? path.resolve(mapped.file)
+                        : path.isAbsolute(filePart)
+                        ? filePart
+                        : path.resolve(
+                              this.projectRoot || process.cwd(),
+                              filePart
+                          );
+                    const finalLine = mapped?.line ?? lineNumber;
+                    const finalCol = mapped?.column ?? colNumber;
+                    resultLines.push(
+                        `    at ${absFile}:${finalLine}:${finalCol}`
+                    );
+                    continue;
+                }
+
+                resultLines.push(strippedLine);
+            }
+
+            return resultLines.join("\n");
+        };
+
+        return messages
+            .map((msg) => rewriteFailureMessage(msg))
+            .filter((msg) => Boolean(msg));
     }
 
     /**
@@ -434,13 +541,19 @@ export class ResultRewriter {
     buildCodeFrame(absPath, line, column = 1, context = 2) {
         const lines = this.readLines(absPath);
         if (!lines.length) return undefined;
+        // Replace tabs with 4 spaces for consistent formatting
+        lines.forEach((_, idx) => {
+            lines[idx] = lines[idx].replace(/\t/g, "    ");
+        });
         const start = Math.max(1, line - context);
         const end = Math.min(lines.length, line + context + 1);
         const frame = [];
 
+        const digitWidth = String(end).length;
+
         for (let i = start; i <= end; i++) {
             const isBright = i === start;
-            const lineNum = String(i).padStart(String(end).length, " ");
+            const lineNum = String(i).padStart(digitWidth, " ");
             const gutter = `${
                 i === line ? chalk.bold.red(">") : " "
             } ${chalk.grey(lineNum + " |")}`;
@@ -503,30 +616,30 @@ export class ResultRewriter {
         const sourcePath = this.datamodelPathToSourcePath(suite.testFilePath);
         const resolvedTestFilePath = path.resolve(sourcePath);
         suite.testFilePath = resolvedTestFilePath;
-        suite.name = resolvedTestFilePath;
 
-        let overallPassed = true;
-        for (const testResult of suite.testResults || []) {
-            if (testResult.status === "failed") {
-                overallPassed = false;
-                break;
-            }
-        }
-        suite.status = overallPassed ? "passed" : "failed";
-
-        if (this.testLocationInResults && Array.isArray(suite.testResults)) {
+        if (Array.isArray(suite.testResults)) {
             for (const testResult of suite.testResults) {
-                if (!testResult || testResult.location) continue;
-                const location =
-                    this.findTestHeaderLocation(testResult.title, sourcePath) ||
-                    (sourcePath !== resolvedTestFilePath
-                        ? this.findTestHeaderLocation(
-                              testResult.title,
-                              resolvedTestFilePath
-                          )
-                        : undefined);
-                if (location) {
-                    testResult.location = location;
+                if (this.testLocationInResults && !testResult.location) {
+                    const location =
+                        this.findTestHeaderLocation(
+                            testResult.title,
+                            sourcePath
+                        ) ||
+                        (sourcePath !== resolvedTestFilePath
+                            ? this.findTestHeaderLocation(
+                                  testResult.title,
+                                  resolvedTestFilePath
+                              )
+                            : undefined);
+                    if (location) {
+                        testResult.location = location;
+                    }
+                }
+
+                if (Array.isArray(testResult.failureMessages)) {
+                    testResult.failureMessages = this.rewriteFailureMessages(
+                        testResult.failureMessages
+                    );
                 }
             }
         }
@@ -563,10 +676,6 @@ export class ResultRewriter {
 
             suite.failureMessage = this.formatFailureMessage(rewritten);
         }
-
-        // forward compatibility with Jest 30+
-        suite.message ??= suite.failureMessage ?? "";
-        suite.assertionResults ??= suite.testResults;
     }
 
     /**
@@ -601,15 +710,7 @@ export class ResultRewriter {
             const normalizedPath = datamodelPath.replace(/\//g, ".");
             let entry = this.modulePathMap.get(normalizedPath);
 
-            let finalPath;
-            if (entry?.luauPath) {
-                // Use the luau path (no source mapping for coverage)
-                finalPath = this.formatPath(entry.luauPath);
-            } else {
-                // If we couldn't find a mapping, use the original path
-                finalPath = datamodelPath;
-            }
-            finalPath = path.resolve(finalPath);
+            const finalPath = path.resolve(entry?.luauPath ?? datamodelPath);
 
             // Clone the coverage object and update the path property
             const rewrittenCoverage = { ...coverage };
@@ -621,5 +722,38 @@ export class ResultRewriter {
         }
 
         return rewritten;
+    }
+
+    /**
+     * Converts raw Jest results into JSON format similar to `jest --json` output.
+     * @param {{ results: object, coverage?: object, globalConfig?: object }} jestRunCliReturn The raw Jest results.
+     */
+    json(jestRunCliReturn) {
+        const results = { ...jestRunCliReturn.results };
+
+        if (jestRunCliReturn.coverage) {
+            results.coverageMap = jestRunCliReturn.coverage;
+        }
+
+        for (const suite of results.testResults) {
+            suite.message = suite.failureMessage ?? "";
+            delete suite.failureMessage;
+
+            suite.assertionResults = suite.testResults || [];
+            delete suite.testResults;
+
+            suite.name = suite.testFilePath;
+            delete suite.testFilePath;
+
+            let overallPassed = true;
+            for (const testResult of suite.testResults || []) {
+                if (testResult.status === "failed") {
+                    overallPassed = false;
+                    break;
+                }
+            }
+            suite.status = overallPassed ? "passed" : "failed";
+        }
+        return results;
     }
 }

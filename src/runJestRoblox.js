@@ -468,8 +468,7 @@ export default async function runJestRoblox(options) {
     }
 
     if (options.json) {
-        parsedResults.results.coverageMap = parsedResults.coverage;
-        const json = JSON.stringify(parsedResults.results);
+        const json = JSON.stringify(rewriter.json(parsedResults));
         if (options.outputFile) {
             fs.writeFileSync(options.outputFile, json, "utf-8");
             console.log(`Test results written to: ${options.outputFile}`);
