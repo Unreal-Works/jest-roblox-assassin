@@ -10,7 +10,7 @@
         "jestrbx": "src/cli.js"
     },
     "repository": {
-        "url": "https://github.com/Unreal-Works/jest-roblox-assassin.git",
+        "url": "git+https://github.com/Unreal-Works/jest-roblox-assassin.git",
         "type": "git"
     },
     "scripts": {
