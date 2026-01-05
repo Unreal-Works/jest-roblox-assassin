@@ -741,6 +741,7 @@ return "__PAYLOAD_URL_START__" .. url .. "__PAYLOAD_URL_END__"
         place: options.place,
         silent: true,
         exit: false,
+        timeout: options.timeout ?? 300,
         out: luauOutputPath,
     });
 
