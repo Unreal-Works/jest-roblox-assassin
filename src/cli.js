@@ -108,7 +108,6 @@ for (const opt of cliOptions) {
 const args = await yargsInstance
     .help("help", "Show help message")
     .alias("help", "h")
-    .alias("version", "v")
     .strict(false).argv;
 
 // Extract testPathPattern from positional args

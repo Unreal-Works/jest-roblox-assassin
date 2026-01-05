@@ -548,15 +548,23 @@ end)
 local runningCoverage = false
 if jestOptions.coverage or jestOptions.collectCoverage then
     if coverage then
+        local instrumentStartTime = os.clock()
         runningCoverage = true
         table.insert(testFiles, game:GetService("ReplicatedStorage"):FindFirstChild("rbxts_include"))
         coverage.instrument(nil, testFiles) -- TODO: support coveragePathIgnorePatterns
+        if jestOptions.debug then
+            print("Coverage instrumentation took " .. ((os.clock() - instrumentStartTime) * 1000) .. "ms")
+        end
     else
         warn("Coverage requested but coverage module not found")
     end
 end
 
+local runCLIStartTime = os.clock()
 local success, resolved = runCLI(game, jestOptions, projects):await()
+if jestOptions.debug then
+    print("runCLI took " .. ((os.clock() - runCLIStartTime) * 1000) .. "ms")
+end
 
 if jestOptions.showConfig or jestOptions.listTests then
     return 0
