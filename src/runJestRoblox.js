@@ -82,15 +82,25 @@ export default async function runJestRoblox(options) {
 
     // Convert coveragePathIgnorePatterns from source paths to datamodel paths
     let coverageIgnoreDatamodelPatterns = [];
-    if (options.coveragePathIgnorePatterns && Array.isArray(options.coveragePathIgnorePatterns)) {
+    if (
+        options.coveragePathIgnorePatterns &&
+        Array.isArray(options.coveragePathIgnorePatterns)
+    ) {
         if (options.debug) {
-            console.log("Source coverage ignore patterns:", options.coveragePathIgnorePatterns);
+            console.log(
+                "Source coverage ignore patterns:",
+                options.coveragePathIgnorePatterns
+            );
         }
-        coverageIgnoreDatamodelPatterns = rewriter.convertSourcePatternsToDatamodelPatterns(
-            options.coveragePathIgnorePatterns
-        );
+        coverageIgnoreDatamodelPatterns =
+            rewriter.convertSourcePatternsToDatamodelPatterns(
+                options.coveragePathIgnorePatterns
+            );
         if (options.debug && coverageIgnoreDatamodelPatterns.length > 0) {
-            console.log("Coverage ignore patterns (datamodel):", coverageIgnoreDatamodelPatterns);
+            console.log(
+                "Coverage ignore patterns (datamodel):",
+                coverageIgnoreDatamodelPatterns
+            );
         }
     }
 
@@ -98,12 +108,24 @@ export default async function runJestRoblox(options) {
     let parsedResults;
 
     if (options.showConfig) {
-        console.log((await executeLuauTest({ ...options, coverageIgnoreDatamodelPatterns })).config);
+        console.log(
+            (
+                await executeLuauTest({
+                    ...options,
+                    coverageIgnoreDatamodelPatterns,
+                })
+            ).config
+        );
         return 0;
     }
 
     if (options.listTests) {
-        const result = JSON.parse(await executeLuauTest({ ...options, coverageIgnoreDatamodelPatterns }));
+        const result = JSON.parse(
+            await executeLuauTest({
+                ...options,
+                coverageIgnoreDatamodelPatterns,
+            })
+        );
         const reconstructed = [];
         for (const testPath of result)
             reconstructed.push(rewriter.datamodelPathToSourcePath(testPath));
@@ -127,7 +149,12 @@ export default async function runJestRoblox(options) {
     const maxWorkers = options.maxWorkers || 1;
     const useParallel = maxWorkers > 1;
     const executeSingleWorker = async () => {
-        return (await executeLuauTest({ ...options, coverageIgnoreDatamodelPatterns })) ?? { exit: 1 };
+        return (
+            (await executeLuauTest({
+                ...options,
+                coverageIgnoreDatamodelPatterns,
+            })) ?? { exit: 1 }
+        );
     };
 
     if (useParallel && !options.testPathPattern) {
@@ -568,6 +595,10 @@ if jestOptions.coverage or jestOptions.collectCoverage then
         
         -- Build list of exclusions for coverage
         local ignorePatterns = jestOptions.coverageIgnoreDatamodelPatterns or {}
+        if #ignorePatterns == 0 then
+            table.insert(ignorePatterns, "ReplicatedStorage.rbxts_include")
+        end
+
         local moduleExclusions = {}
         
         -- Helper function to check if a path should be ignored
