@@ -37,10 +37,11 @@ export class ResultRewriter {
 
                     // Process current child
                     const datamodelPath = [...parents, child.name].join(".");
-                    const luauPath = child.filePaths[0];
-                    if (!luauPath) continue;
-
-                    const absoluteLuauPath = path.join(projectRoot, luauPath);
+                    const relativeLuauPath = child.filePaths[0];
+                    if (!relativeLuauPath) continue;
+                    const absoluteLuauPath = path.resolve(
+                        path.join(projectRoot, relativeLuauPath)
+                    );
                     let sourcePath;
 
                     if (absoluteOutDir) {
@@ -53,6 +54,7 @@ export class ResultRewriter {
                             "/"
                         );
                         if (normalizedLuau.startsWith(normalizedOutDir)) {
+                            // is in outDir, we can try to find the rootDir counterpart
                             const relativePath = path.relative(
                                 absoluteOutDir,
                                 absoluteLuauPath
@@ -93,11 +95,9 @@ export class ResultRewriter {
                             }
                         }
                     }
-
-                    const entry = { luauPath, absoluteLuauPath, sourcePath };
+                    const entry = { luauPath: absoluteLuauPath, sourcePath };
                     map.set(datamodelPath, entry);
-                    const normalizedLuauPath = luauPath.replace(/\\/g, "/");
-                    this.luauPathMap.set(normalizedLuauPath, entry);
+                    this.luauPathMap.set(absoluteLuauPath, entry);
                 }
             };
 
@@ -257,14 +257,12 @@ export class ResultRewriter {
             entry = this.luauPathMap.get(relativeToRoot);
         }
         if (!entry) return undefined;
-        const absoluteLuauPath =
-            entry.absoluteLuauPath ?? path.resolve(entry.luauPath);
         const mappedLine = this.findSourceLine(
-            absoluteLuauPath,
-            entry.sourcePath ?? absoluteLuauPath,
+            entry.luauPath,
+            entry.sourcePath ?? entry.luauPath,
             lineNumber
         );
-        const sourceForColumn = entry.sourcePath ?? absoluteLuauPath;
+        const sourceForColumn = entry.sourcePath ?? entry.luauPath;
         const sourceLines = this.readLines(sourceForColumn);
         const lineText = sourceLines[mappedLine - 1] || "";
         const column = this.findExpectationColumn(lineText);
@@ -755,5 +753,135 @@ export class ResultRewriter {
             suite.status = overallPassed ? "passed" : "failed";
         }
         return results;
+    }
+
+    /**
+     * Converts source path patterns to datamodel path patterns for coverage exclusion.
+     * @param {string[]} sourcePatterns Array of glob patterns relative to source directory, or datamodel paths.
+     * @returns {string[]} Array of datamodel path patterns.
+     */
+    convertSourcePatternsToDatamodelPatterns(sourcePatterns) {
+        if (!sourcePatterns || sourcePatterns.length === 0) return [];
+
+        const datamodelPatterns = [];
+        const absoluteRootDir = path.isAbsolute(
+            this.compilerOptions?.rootDir ?? "src"
+        )
+            ? this.compilerOptions?.rootDir ?? "src"
+            : path.join(
+                  this.projectRoot,
+                  this.compilerOptions?.rootDir ?? "src"
+              );
+
+        for (let pattern of sourcePatterns) {
+            // Check if this is already a datamodel path (uses dots and doesn't contain slashes/backslashes or file extensions)
+            const isDatamodelPath = pattern.includes(".") && 
+                                   !pattern.includes("/") && 
+                                   !pattern.includes("\\") &&
+                                   !pattern.match(/\.(ts|tsx|js|jsx|lua|luau)$/);
+            
+            if (isDatamodelPath) {
+                // Already a datamodel path, add it directly
+                if (!datamodelPatterns.includes(pattern)) {
+                    datamodelPatterns.push(pattern);
+                }
+                continue;
+            }
+
+            const isDirectoryPattern = pattern.endsWith("/") || pattern.endsWith("\\");
+            
+            // Convert directory patterns to wildcard patterns for file matching
+            // e.g., "/node_modules/" -> "/node_modules/*"
+            const searchPattern = isDirectoryPattern ? pattern + "*" : pattern;
+
+            // Convert source pattern to absolute path pattern
+            let absolutePattern;
+            if (path.isAbsolute(searchPattern)) {
+                absolutePattern = searchPattern;
+            } else {
+                // Check if pattern is already relative to rootDir
+                // (e.g., "shared/setupTests.ts" when rootDir is "src")
+                // vs relative to project root (e.g., "src/shared/setupTests.ts")
+                const rootDirBasename = path.basename(absoluteRootDir);
+                if (
+                    searchPattern.startsWith(rootDirBasename + "/") ||
+                    searchPattern.startsWith(rootDirBasename + "\\")
+                ) {
+                    // Pattern includes rootDir, so join with project root
+                    absolutePattern = path.join(this.projectRoot, searchPattern);
+                } else {
+                    // Pattern is relative to rootDir
+                    absolutePattern = path.join(absoluteRootDir, searchPattern);
+                }
+            }
+
+            const normalizedPattern = absolutePattern.replace(/\\/g, "/");
+
+            // For directory patterns, also add a directory prefix pattern
+            if (isDirectoryPattern) {
+                // Find a sample matching file to extract the directory prefix
+                for (const [datamodelPath, entry] of this.modulePathMap.entries()) {
+                    if (!entry.sourcePath) continue;
+
+                    const normalizedSource = entry.sourcePath.replace(/\\/g, "/");
+
+                    if (this._matchesPattern(normalizedSource, normalizedPattern)) {
+                        // Extract the directory portion from the datamodel path
+                        // by removing the filename component
+                        const parts = datamodelPath.split(".");
+                        if (parts.length > 1) {
+                            const dirPattern = parts.slice(0, -1).join(".");
+                            if (!datamodelPatterns.includes(dirPattern)) {
+                                datamodelPatterns.push(dirPattern);
+                            }
+                        }
+                        break; // One sample is enough to get the directory pattern
+                    }
+                }
+            }
+
+            // Find all datamodel paths that map to source files matching this pattern
+            for (const [datamodelPath, entry] of this.modulePathMap.entries()) {
+                if (!entry.sourcePath) continue;
+
+                const normalizedSource = entry.sourcePath.replace(/\\/g, "/");
+
+                // Simple pattern matching - supports wildcards and exact matches
+                if (this._matchesPattern(normalizedSource, normalizedPattern)) {
+                    if (!datamodelPatterns.includes(datamodelPath)) {
+                        datamodelPatterns.push(datamodelPath);
+                    }
+                }
+            }
+        }
+
+        return datamodelPatterns;
+    }
+
+    /**
+     * Simple pattern matcher supporting wildcards.
+     * @param {string} str The string to test.
+     * @param {string} pattern The pattern to match against.
+     * @returns {boolean} True if the string matches the pattern.
+     */
+    _matchesPattern(str, pattern) {
+        // Exact match
+        if (str === pattern) return true;
+
+        // Check if str contains the pattern as a substring
+        if (str.includes(pattern)) return true;
+
+        // Convert glob pattern to regex
+        const regexPattern = pattern
+            .replace(/\./g, "\\.")
+            .replace(/\*/g, ".*")
+            .replace(/\?/g, ".");
+
+        try {
+            const regex = new RegExp(regexPattern);
+            return regex.test(str);
+        } catch {
+            return false;
+        }
     }
 }

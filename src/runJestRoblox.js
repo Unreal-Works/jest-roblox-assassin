@@ -80,16 +80,30 @@ export default async function runJestRoblox(options) {
         testLocationInResults: options.testLocationInResults,
     });
 
+    // Convert coveragePathIgnorePatterns from source paths to datamodel paths
+    let coverageIgnoreDatamodelPatterns = [];
+    if (options.coveragePathIgnorePatterns && Array.isArray(options.coveragePathIgnorePatterns)) {
+        if (options.debug) {
+            console.log("Source coverage ignore patterns:", options.coveragePathIgnorePatterns);
+        }
+        coverageIgnoreDatamodelPatterns = rewriter.convertSourcePatternsToDatamodelPatterns(
+            options.coveragePathIgnorePatterns
+        );
+        if (options.debug && coverageIgnoreDatamodelPatterns.length > 0) {
+            console.log("Coverage ignore patterns (datamodel):", coverageIgnoreDatamodelPatterns);
+        }
+    }
+
     const actualStartTime = Date.now();
     let parsedResults;
 
     if (options.showConfig) {
-        console.log((await executeLuauTest(options)).config);
+        console.log((await executeLuauTest({ ...options, coverageIgnoreDatamodelPatterns })).config);
         return 0;
     }
 
     if (options.listTests) {
-        const result = JSON.parse(await executeLuauTest(options));
+        const result = JSON.parse(await executeLuauTest({ ...options, coverageIgnoreDatamodelPatterns }));
         const reconstructed = [];
         for (const testPath of result)
             reconstructed.push(rewriter.datamodelPathToSourcePath(testPath));
@@ -113,7 +127,7 @@ export default async function runJestRoblox(options) {
     const maxWorkers = options.maxWorkers || 1;
     const useParallel = maxWorkers > 1;
     const executeSingleWorker = async () => {
-        return (await executeLuauTest(options)) ?? { exit: 1 };
+        return (await executeLuauTest({ ...options, coverageIgnoreDatamodelPatterns })) ?? { exit: 1 };
     };
 
     if (useParallel && !options.testPathPattern) {
@@ -174,6 +188,7 @@ export default async function runJestRoblox(options) {
                 workers.map(async (worker) => {
                     const workerOptions = {
                         ...options,
+                        coverageIgnoreDatamodelPatterns,
                     };
 
                     // Create a testPathPattern regex that matches this worker's suites
@@ -550,8 +565,47 @@ if jestOptions.coverage or jestOptions.collectCoverage then
     if coverage then
         local instrumentStartTime = os.clock()
         runningCoverage = true
-        table.insert(testFiles, game:GetService("ReplicatedStorage"):FindFirstChild("rbxts_include"))
-        coverage.instrument(nil, testFiles) -- TODO: support coveragePathIgnorePatterns and collectCoverageFrom
+        
+        -- Build list of exclusions for coverage
+        local ignorePatterns = jestOptions.coverageIgnoreDatamodelPatterns or {}
+        local moduleExclusions = {}
+        
+        -- Helper function to check if a path should be ignored
+        local function shouldIgnorePath(fullName)
+            -- Check against user-specified ignore patterns
+            for _, pattern in ipairs(ignorePatterns) do
+                -- Support both exact matches and directory prefix matches
+                -- e.g., "ReplicatedStorage.src.shared" matches "ReplicatedStorage.src.shared.setupTests"
+                if fullName:find(pattern, 1, true) then -- plain text search
+                    return true
+                end
+                -- Also check if this is a child of a directory pattern
+                if fullName:sub(1, #pattern + 1) == pattern .. "." then
+                    return true
+                end
+            end
+            
+            return false
+        end
+        
+        -- Scan all modules in the game and build exclusion list
+        for _, descendant in ipairs(game:GetDescendants()) do
+            if descendant:IsA("ModuleScript") and shouldIgnorePath(descendant:GetFullName()) then
+                table.insert(moduleExclusions, descendant)
+            end
+        end
+        
+        if jestOptions.debug then
+            if #ignorePatterns > 0 then
+                print("Coverage ignore patterns: " .. table.concat(ignorePatterns, ", "))
+            end
+            if #moduleExclusions > 0 then
+                print("Excluding " .. #moduleExclusions .. " modules from coverage")
+            end
+        end
+        
+        -- Instrument all sources (nil) except exclusions
+        coverage.instrument(nil, moduleExclusions) -- TODO: support collectCoverageFrom
         if jestOptions.debug then
             print("Coverage instrumentation took " .. ((os.clock() - instrumentStartTime) * 1000) .. "ms")
         end
@@ -680,7 +734,7 @@ return "__PAYLOAD_URL_START__" .. url .. "__PAYLOAD_URL_END__"
     }
 
     if (options.debug) {
-        console.log(outputLog);
+        console.log(outputLog.split(resultSplitMarker)[0]);
     }
 
     if (options.showConfig) {
