@@ -36,7 +36,7 @@ export default async function runJestRoblox(options) {
     }
     if (!options.place) {
         console.error(
-            "--place option is required to run tests. No .rbxl or .rbxlx file found in current directory or nearby."
+            "--place option is required to run tests. No .rbxl or .rbxlx file found in current directory or nearby.",
         );
         return 1;
     }
@@ -71,7 +71,7 @@ export default async function runJestRoblox(options) {
     }
 
     const rojoProject = discoverRojoProject(
-        options.project ? path.resolve(options.project) : undefined
+        options.project ? path.resolve(options.project) : undefined,
     );
     const compilerOptions = discoverCompilerOptions(options.tsconfig);
     const rewriter = new ResultRewriter({
@@ -89,17 +89,17 @@ export default async function runJestRoblox(options) {
         if (options.debug) {
             console.log(
                 "Source coverage ignore patterns:",
-                options.coveragePathIgnorePatterns
+                options.coveragePathIgnorePatterns,
             );
         }
         coverageIgnoreDatamodelPatterns =
             rewriter.convertSourcePatternsToDatamodelPatterns(
-                options.coveragePathIgnorePatterns
+                options.coveragePathIgnorePatterns,
             );
         if (options.debug && coverageIgnoreDatamodelPatterns.length > 0) {
             console.log(
                 "Coverage ignore patterns (datamodel):",
-                coverageIgnoreDatamodelPatterns
+                coverageIgnoreDatamodelPatterns,
             );
         }
     }
@@ -114,7 +114,7 @@ export default async function runJestRoblox(options) {
                     ...options,
                     coverageIgnoreDatamodelPatterns,
                 })
-            ).config
+            ).config,
         );
         return 0;
     }
@@ -124,7 +124,7 @@ export default async function runJestRoblox(options) {
             await executeLuauTest({
                 ...options,
                 coverageIgnoreDatamodelPatterns,
-            })
+            }),
         );
         const reconstructed = [];
         for (const testPath of result)
@@ -161,7 +161,7 @@ export default async function runJestRoblox(options) {
         // Discover test files from filesystem
         const testSuites = discoverTestFilesFromFilesystem(
             compilerOptions,
-            options
+            options,
         );
 
         if (options.verbose) {
@@ -194,7 +194,7 @@ export default async function runJestRoblox(options) {
                 const start = i * suitesPerWorker;
                 const end = Math.min(
                     start + suitesPerWorker,
-                    testSuites.length
+                    testSuites.length,
                 );
                 const workerSuites = testSuites.slice(start, end);
 
@@ -222,14 +222,14 @@ export default async function runJestRoblox(options) {
                     // Each suite is a datamodel path like "ReplicatedStorage.src.__tests__.add.spec"
                     // We escape special regex chars and join with | for OR matching
                     const escapedPaths = worker.suites.map((s) =>
-                        s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+                        s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
                     );
                     workerOptions.testPathPattern = `(${escapedPaths.join(
-                        "|"
+                        "|",
                     )})$`;
 
                     return await executeLuauTest(workerOptions);
-                })
+                }),
             );
 
             // Combine results from all workers
@@ -284,7 +284,7 @@ export default async function runJestRoblox(options) {
                         result.results.numTotalTestSuites || 0;
                     allSuccess = allSuccess && result.results.success;
                     combinedTestResults.push(
-                        ...(result.results.testResults || [])
+                        ...(result.results.testResults || []),
                     );
 
                     // Aggregate snapshot data
@@ -309,17 +309,17 @@ export default async function runJestRoblox(options) {
                             combinedSnapshot.failure || snap.failure || false;
                         if (snap.filesRemovedList) {
                             combinedSnapshot.filesRemovedList.push(
-                                ...snap.filesRemovedList
+                                ...snap.filesRemovedList,
                             );
                         }
                         if (snap.uncheckedKeysByFile) {
                             combinedSnapshot.uncheckedKeysByFile.push(
-                                ...snap.uncheckedKeysByFile
+                                ...snap.uncheckedKeysByFile,
                             );
                         }
                         if (snap.uncheckedKeys) {
                             combinedSnapshot.uncheckedKeys.push(
-                                ...snap.uncheckedKeys
+                                ...snap.uncheckedKeys,
                             );
                         }
                     }
@@ -363,7 +363,7 @@ export default async function runJestRoblox(options) {
     // Rewrite coverage paths if coverage data is available
     if (parsedResults.coverage) {
         parsedResults.coverage = rewriter.rewriteCoverageData(
-            parsedResults.coverage
+            parsedResults.coverage,
         );
     }
 
@@ -380,7 +380,7 @@ export default async function runJestRoblox(options) {
                 parsedResults.globalConfig.rootDir) ||
             process.cwd(),
         testPathPatterns: new TestPathPatterns(
-            options.testPathPattern ? [options.testPathPattern] : []
+            options.testPathPattern ? [options.testPathPattern] : [],
         ),
     };
 
@@ -422,12 +422,12 @@ export default async function runJestRoblox(options) {
                         });
                     } else {
                         console.warn(
-                            `Reporter module "${reporterName}" does not have a default export.`
+                            `Reporter module "${reporterName}" does not have a default export.`,
                         );
                     }
                 } catch (error) {
                     console.warn(
-                        `Failed to load reporter module "${reporterName}": ${error.message}`
+                        `Failed to load reporter module "${reporterName}": ${error.message}`,
                     );
                 }
             }
@@ -470,7 +470,7 @@ export default async function runJestRoblox(options) {
                 reporter.onRunStart(aggregatedResults, {
                     estimatedTime: 0,
                     showStatus: true,
-                })
+                }),
             );
         }
 
@@ -482,8 +482,8 @@ export default async function runJestRoblox(options) {
                         reporter.onTestResult(
                             { context: { config: globalConfig } },
                             testResult,
-                            aggregatedResults
-                        )
+                            aggregatedResults,
+                        ),
                     );
                 } else if (typeof reporter.onTestStart === "function") {
                     await Promise.resolve(reporter.onTestStart(testResult));
@@ -494,7 +494,7 @@ export default async function runJestRoblox(options) {
         // Complete the run
         if (typeof reporter.onRunComplete === "function") {
             await Promise.resolve(
-                reporter.onRunComplete(new Set(), aggregatedResults)
+                reporter.onRunComplete(new Set(), aggregatedResults),
             );
         }
     }
@@ -534,7 +534,7 @@ async function executeLuauTest(options) {
         : Math.random().toString(36).substring(2, 8);
     const luauOutputPath = path.join(
         cachePath,
-        `luau_output_${randomHash}.log`
+        `luau_output_${randomHash}.log`,
     );
 
     const resultSplitMarker = `__JEST_RESULT_START__`;
@@ -741,7 +741,7 @@ return "__PAYLOAD_URL_START__" .. url .. "__PAYLOAD_URL_END__"
         place: options.place,
         silent: true,
         exit: false,
-        timeout: options.timeout ?? 300,
+        timeout: options.timeout ?? "300s",
         out: luauOutputPath,
     });
 
@@ -757,7 +757,7 @@ return "__PAYLOAD_URL_START__" .. url .. "__PAYLOAD_URL_END__"
 
     if (luauExitCode !== 0) {
         throw new Error(
-            `Luau script execution failed with exit code: ${luauExitCode}\n${outputLog}`
+            `Luau script execution failed with exit code: ${luauExitCode}\n${outputLog}`,
         );
     }
 
@@ -796,7 +796,7 @@ return "__PAYLOAD_URL_START__" .. url .. "__PAYLOAD_URL_END__"
 
     let jestPayloadRaw;
     const payloadUrlMatch = luauReturnRaw.match(
-        /__PAYLOAD_URL_START__(.+?)__PAYLOAD_URL_END__/
+        /__PAYLOAD_URL_START__(.+?)__PAYLOAD_URL_END__/,
     );
     const payloadUrl = payloadUrlMatch ? payloadUrlMatch[1] : null;
     if (payloadUrl) {
@@ -804,7 +804,7 @@ return "__PAYLOAD_URL_START__" .. url .. "__PAYLOAD_URL_END__"
         const gh_token = process.env.JEST_ASSASSIN_GITHUB_TOKEN;
         if (!gh_token) {
             throw new Error(
-                "Payload too large; JEST_ASSASSIN_GITHUB_TOKEN not specified"
+                "Payload too large; JEST_ASSASSIN_GITHUB_TOKEN not specified",
             );
         }
         const payloadUrlResponse = await fetch(payloadUrl, {
@@ -814,13 +814,13 @@ return "__PAYLOAD_URL_START__" .. url .. "__PAYLOAD_URL_END__"
         });
         if (!payloadUrlResponse.ok)
             throw new Error(
-                `Failed to fetch large payload from GitHub: ${payloadUrlResponse.status} ${payloadUrlResponse.statusText}`
+                `Failed to fetch large payload from GitHub: ${payloadUrlResponse.status} ${payloadUrlResponse.statusText}`,
             );
 
         const gitUrl = (await payloadUrlResponse.json()).git_url;
         if (!gitUrl)
             throw new Error(
-                `Invalid response from GitHub when fetching payload: ${await payloadUrlResponse.text()}`
+                `Invalid response from GitHub when fetching payload: ${await payloadUrlResponse.text()}`,
             );
 
         const gitResponse = await fetch(gitUrl, {
@@ -830,13 +830,13 @@ return "__PAYLOAD_URL_START__" .. url .. "__PAYLOAD_URL_END__"
         });
         if (!gitResponse.ok)
             throw new Error(
-                `Failed to fetch large payload content from GitHub: ${gitResponse.status} ${gitResponse.statusText}`
+                `Failed to fetch large payload content from GitHub: ${gitResponse.status} ${gitResponse.statusText}`,
             );
 
         const data = await gitResponse.json();
         if (!data.content)
             throw new Error(
-                `Invalid content response from GitHub when fetching payload: ${await gitResponse.text()}`
+                `Invalid content response from GitHub when fetching payload: ${await gitResponse.text()}`,
             );
 
         jestPayloadRaw = Buffer.from(data.content, "base64").toString("utf-8");
@@ -846,7 +846,7 @@ return "__PAYLOAD_URL_START__" .. url .. "__PAYLOAD_URL_END__"
 
     if (miscOutput.includes("No tests found, exiting with code")) {
         const startIndex = miscOutput.indexOf(
-            "No tests found, exiting with code"
+            "No tests found, exiting with code",
         );
         // The marker is not in miscOutput (it was already split off), so just use the end of miscOutput
         const message = miscOutput.slice(startIndex).trim();
@@ -920,7 +920,7 @@ async function generateCoverageReports(coverageData, options) {
         } catch (error) {
             if (options.verbose) {
                 console.warn(
-                    `Failed to generate ${formatName} coverage report: ${error.message}`
+                    `Failed to generate ${formatName} coverage report: ${error.message}`,
                 );
             }
         }
