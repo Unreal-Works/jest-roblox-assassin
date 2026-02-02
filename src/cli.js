@@ -55,7 +55,8 @@ let yargsInstance = yargs(hideBin(process.argv))
         alias: "collectCoverage",
     })
     .option("watch", {
-        describe: "Alias of watchAll. Watches the place file and reruns tests on changes.",
+        describe:
+            "Alias of watchAll. Watches the place file and reruns tests on changes.",
         type: "boolean",
     })
     .option("watchAll", {
@@ -69,6 +70,11 @@ let yargsInstance = yargs(hideBin(process.argv))
     .option("outputFile", {
         describe:
             "Write test results to a file when the --json option is also specified. The returned JSON structure is documented in testResultsProcessor.",
+        type: "string",
+    })
+    .option("timeout", {
+        describe:
+            "Specifies the time before the cloud test run is aborted. Format: <number>[s|m|h], where s=seconds, m=minutes, h=hours. Default is 300s. Only applies to cloud test runs.",
         type: "string",
     });
 
@@ -92,10 +98,10 @@ for (const opt of cliOptions) {
         type: isBoolean
             ? "boolean"
             : isArray
-            ? "array"
-            : isNumber
-            ? "number"
-            : "string",
+              ? "array"
+              : isNumber
+                ? "number"
+                : "string",
     };
 
     if (shortFlags[flagName]) {
@@ -119,11 +125,11 @@ if (args.watch && !args.watchAll) {
 }
 
 const watchMode = Boolean(args.watchAll);
-const resolvedPlace = watchMode ? args.place ?? findPlaceFile() : args.place;
+const resolvedPlace = watchMode ? (args.place ?? findPlaceFile()) : args.place;
 
 if (watchMode && !resolvedPlace) {
     console.error(
-        "Watch mode requires a --place file or a discoverable place in the current workspace."
+        "Watch mode requires a --place file or a discoverable place in the current workspace.",
     );
     process.exit(1);
 }
@@ -186,7 +192,7 @@ const scheduleRun = (reason) => {
 };
 
 console.log(
-    `Watching ${path.relative(process.cwd(), absolutePlace)} for changes. Press Ctrl+C to exit.`
+    `Watching ${path.relative(process.cwd(), absolutePlace)} for changes. Press Ctrl+C to exit.`,
 );
 
 const watcher = chokidar.watch(absolutePlace, { ignoreInitial: true });
